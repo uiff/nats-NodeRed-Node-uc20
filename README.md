@@ -5,7 +5,7 @@
 Node-RED nodes to read and write u-OS Data Hub variables via NATS. This package exposes three building blocks:
 
 1. **u-OS Config** – stores host, OAuth client credentials and manages the shared NATS connection.
-2. **DataHub Input** – subscribes to an existing provider, lets you pick individual variables and emits JSON messages.
+2. **DataHub Input** – subscribes to an existing provider and emits JSON messages. Enter the provider ID and optional comma-separated variable names.
 3. **DataHub Output** – automatically registers a provider (default `nodered`), flattens incoming JSON structures and publishes them to the Data Hub.
 
 The nodes reuse the FlatBuffer helpers from the standalone Node sample, so they speak the native NATS API.
@@ -38,8 +38,8 @@ The config node automatically fetches tokens via Client Credentials flow and exp
 
 ## DataHub Input Node
 
-- Select the u-OS config node and pick a provider from the drop-down. The node queries `/datahub/v1/providers` and lists all registry entries.
-- Choose whether you want **all variables**, **single variable**, or **multi selection**. The variable selector is populated from `/datahub/v1/providers/<provider>/variables`.
+- Select the u-OS config node and enter the provider ID (e.g. `u_os_adm`).
+- Optionally provide a comma-separated list of variable keys (leave empty to receive all).
 - The node outputs messages with the structure:
   ```json
   {
@@ -68,7 +68,7 @@ The config node automatically fetches tokens via Client Credentials flow and exp
 ## Example Flow
 
 1. Drop a **u-OS Config** node, fill in host/port and OAuth credentials from the Control Center.
-2. Add a **DataHub Input** node, select the config, pick an existing provider (e.g. `u_os_adm`) and choose the variables you want to observe. Connect the output to a Debug node.
+2. Add a **DataHub Input** node, select the config, enter the provider ID and optional comma-separated variable list. Connect the output to a Debug node.
 3. Add a **DataHub Output** node, leave provider ID = `nodered` and send structured JSON (e.g. from a Function node). The values instantly appear in the Data Hub under the provider `nodered`.
 
 > Tip: Because both nodes rely on the Control Center HTTP API for metadata they inherit the same permissions as your OAuth client. Make sure the client has at least `hub.variables.readonly` for the input node and `hub.variables.provide hub.variables.readwrite` for the output node.

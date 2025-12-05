@@ -1,131 +1,25 @@
 <script type="text/javascript">
-(function() {
-  function fetchProviders(configId) {
-    if (!configId) return Promise.resolve([]);
-    return $.getJSON(`uos/providers/${configId}`);
-  }
-  function fetchVariables(configId, providerId) {
-    if (!configId || !providerId) return Promise.resolve([]);
-    return $.getJSON(`uos/providers/${configId}/${providerId}/variables`);
-  }
-
   RED.nodes.registerType('datahub-input', {
-    category: 'input',
+    category: 'DataHub-NATS',
     color: '#ff9f43',
     defaults: {
       name: { value: '' },
       connection: { type: 'uos-config', required: true },
-      providerId: { value: '', required: true },
-      variableMode: { value: 'all' },
-      variables: { value: '[]' }
+      providerId: { value: 'sampleprovider', required: true },
+      variablesText: { value: '' }
     },
     inputs: 0,
     outputs: 1,
-    icon: 'white/datahub-input.svg',
-    label: function() {
-      return this.name || `DataHub Input ${this.providerId || ''}`;
+    icon: "white/datahub-input.svg",
+    label: function () {
+      return this.name || `Input ${this.providerId || ''}`;
     },
-    labelStyle: function() {
+    labelStyle: function () {
       return this.name ? 'node_label_italic' : '';
-    },
-    oneditprepare: function() {
-      const providerField = $('#node-input-providerId');
-      const modeField = $('#node-input-variableMode');
-      const singleField = $('#node-input-variableSingle');
-      const multiField = $('#node-input-variableMulti');
-      const multiContainer = $('#node-input-variableMulti-container');
-      const singleContainer = $('#node-input-variableSingle-container');
-      const configField = $('#node-input-connection');
-      let cachedVariables = [];
-
-      function applyMode() {
-        const mode = modeField.val();
-        if (mode === 'single') {
-          singleContainer.show();
-          multiContainer.hide();
-        } else if (mode === 'multi') {
-          singleContainer.hide();
-          multiContainer.show();
-        } else {
-          singleContainer.hide();
-          multiContainer.hide();
-        }
-      }
-
-      function populateVariables(list) {
-        cachedVariables = list;
-        singleField.empty();
-        multiField.empty();
-        list.forEach(v => {
-          $('<option>').val(v.key).text(v.key).appendTo(singleField);
-          $('<option>').val(v.key).text(v.key).appendTo(multiField);
-        });
-        const stored = [];
-        try { stored.push(...JSON.parse($('#node-input-variables').val() || '[]')); } catch(e) {}
-        if (stored.length) {
-          singleField.val(stored[0] || '');
-          multiField.val(stored);
-        }
-      }
-
-      function loadVariables() {
-        const cfg = configField.val();
-        const provider = providerField.val();
-        if (!cfg || !provider) {
-          populateVariables([]);
-          return;
-        }
-        fetchVariables(cfg, provider).then((vars) => {
-          const normalized = (vars || []).map(v => ({ key: v.key || v.id }));
-          populateVariables(normalized);
-        }).catch(() => populateVariables([]));
-      }
-
-      function loadProviders() {
-        const node = this;
-        const cfg = configField.val();
-        providerField.empty();
-        if (!cfg) {
-          providerField.append('<option value="">-- select config first --</option>');
-          return;
-        }
-        fetchProviders(cfg).then((providers) => {
-          providerField.append('<option value="">-- choose provider --</option>');
-          (providers || []).forEach((p) => {
-            $('<option>').val(p.id).text(p.id).appendTo(providerField);
-          });
-          if (node.providerId) {
-            providerField.val(node.providerId);
-          }
-          loadVariables();
-        }).catch(() => {
-          providerField.append('<option value="">(error loading providers)</option>');
-        });
-      }
-
-      modeField.on('change', applyMode);
-      providerField.on('change', loadVariables);
-      configField.on('change', loadProviders.bind(this));
-
-      applyMode();
-      loadProviders.call(this);
-    },
-    oneditsave: function() {
-      const mode = $('#node-input-variableMode').val();
-      let selected = [];
-      if (mode === 'single') {
-        const val = $('#node-input-variableSingle').val();
-        if (val) selected = [val];
-      } else if (mode === 'multi') {
-        selected = $('#node-input-variableMulti').val() || [];
-      }
-      $('#node-input-variables').val(JSON.stringify(selected));
     }
   });
-})();
 </script>
 
-<input type="hidden" id="node-input-variables">
 <div class="form-row">
   <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
   <input type="text" id="node-input-name">
@@ -135,23 +29,11 @@
   <input type="text" id="node-input-connection">
 </div>
 <div class="form-row">
-  <label for="node-input-providerId"><i class="fa fa-list"></i> Provider</label>
-  <select id="node-input-providerId"></select>
+  <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
+  <input type="text" id="node-input-providerId" placeholder="sampleprovider">
 </div>
 <div class="form-row">
-  <label for="node-input-variableMode"><i class="fa fa-filter"></i> Variables</label>
-  <select id="node-input-variableMode">
-    <option value="all">All variables</option>
-    <option value="single">Single variable</option>
-    <option value="multi">Multi selection</option>
-  </select>
+  <label for="node-input-variablesText"><i class="fa fa-list"></i> Variables (comma separated)</label>
+  <input type="text" id="node-input-variablesText" placeholder="diagnostics.status_text,diagnostics.error_count">
 </div>
-<div class="form-row" id="node-input-variableSingle-container" style="display:none;">
-  <label><i class="fa fa-bullseye"></i> Variable</label>
-  <select id="node-input-variableSingle" style="width:100%"></select>
-</div>
-<div class="form-row" id="node-input-variableMulti-container" style="display:none;">
-  <label><i class="fa fa-list-ul"></i> Variables</label>
-  <select id="node-input-variableMulti" multiple size="8" style="width:100%"> </select>
-</div>
-<p>Outputs messages with <code>{{payload.type}}</code> = <code>snapshot</code> or <code>change</code> and a <code>variables</code> array containing the selected Data Hub values.</p>
+<p>Leave the variable list empty to receive all variables. Separate multiple keys with commas. Output payload: <code>{ type: 'snapshot'|'change', variables: [...] }</code>.</p>

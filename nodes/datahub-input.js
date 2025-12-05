@@ -27,13 +27,11 @@ module.exports = function (RED) {
     }
 
     this.providerId = config.providerId || 'sampleprovider';
-    this.variableMode = config.variableMode || 'all';
-    try {
-      this.variables = JSON.parse(config.variables || '[]').map(normalizeKey).filter((k) => k);
-    }
-    catch (err) {
-      this.variables = [];
-    }
+    const text = config.variablesText || '';
+    this.variables = text
+      .split(',')
+      .map((entry) => (entry ? String(entry).trim() : ''))
+      .filter((entry) => entry.length > 0);
 
     let nc;
     let sub;
@@ -41,13 +39,10 @@ module.exports = function (RED) {
     const defMap = new Map();
 
     const shouldInclude = (key) => {
-      if (this.variableMode === 'all' || !this.variables.length) {
+      if (!this.variables.length) {
         return true;
       }
       const needle = normalizeKey(key);
-      if (this.variableMode === 'single') {
-        return needle === this.variables[0];
-      }
       return this.variables.includes(needle);
     };
 
