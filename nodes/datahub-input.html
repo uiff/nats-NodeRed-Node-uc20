@@ -11,6 +11,18 @@
     inputs: 0,
     outputs: 1,
     icon: "white/datahub-input.svg",
+    oneditprepare: function() {
+      const help = `
+      <b>DataHub Input node</b><br>
+      <ul>
+        <li><b>u-OS Config</b>: choose the config node with host and OAuth credentials.</li>
+        <li><b>Provider ID</b>: e.g. <code>sampleprovider</code> or <code>u_os_adm</code>.</li>
+        <li><b>Variables</b>: leave empty for all variables or enter comma-separated keys like <code>diagnostics.status_text,diagnostics.error_count</code>.</li>
+      </ul>
+      The node outputs messages of the form <code>{ type: 'snapshot'|'change', variables: [...] }</code>.
+      `;
+      $('#datahub-input-help').html(help);
+    },
     label: function () {
       return this.name || `Input ${this.providerId || ''}`;
     },
@@ -36,4 +48,4 @@
   <label for="node-input-variablesText"><i class="fa fa-list"></i> Variables (comma separated)</label>
   <input type="text" id="node-input-variablesText" placeholder="diagnostics.status_text,diagnostics.error_count">
 </div>
-<p>Leave the variable list empty to receive all variables. Separate multiple keys with commas. Output payload: <code>{ type: 'snapshot'|'change', variables: [...] }</code>.</p>
+<div id="datahub-input-help" class="form-tips"></div>

@@ -10,6 +10,17 @@
     inputs: 1,
     outputs: 1,
     icon: "white/datahub-output.svg",
+    oneditprepare: function() {
+      const help = `
+      <b>DataHub Output node</b><br>
+      <ul>
+        <li><b>u-OS Config</b>: select the config node.</li>
+        <li><b>Provider ID</b>: defaults to <code>nodered</code> (will be registered automatically).</li>
+      </ul>
+      Send any JSON payload → nested objects become dot-separated keys (e.g. <code>{ diagnostics: { status_text: 'ok' } }</code> ⇢ <code>diagnostics.status_text</code>).
+      `;
+      $('#datahub-output-help').html(help);
+    },
     label: function () {
       return this.name || `Output ${this.providerId || ''}`;
     },
@@ -31,4 +42,4 @@
   <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
   <input type="text" id="node-input-providerId" placeholder="nodered">
 </div>
-<p>Send JSON payloads to this node. Nested objects automatically become dot-separated keys (e.g. <code>{ diagnostics: { status_text: "ok" } }</code> ⇒ <code>diagnostics.status_text</code>).</p>
+<div id="datahub-output-help" class="form-tips"></div>
