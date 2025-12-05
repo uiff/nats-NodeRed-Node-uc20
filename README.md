@@ -1,0 +1,80 @@
+# node-red-contrib-uos-nats
+
+**Note:** This custom Node-RED package is built and maintained by [IoTUeli](https://www.linkedin.com/in/iotueli/) and is **not** an official Weidmüller product. For questions, feature requests, or support please contact IoTUeli directly.
+
+Node-RED nodes to read and write u-OS Data Hub variables via NATS. This package exposes three building blocks:
+
+1. **u-OS Config** – stores host, OAuth client credentials and manages the shared NATS connection.
+2. **DataHub Input** – subscribes to an existing provider, lets you pick individual variables and emits JSON messages.
+3. **DataHub Output** – automatically registers a provider (default `nodered`), flattens incoming JSON structures and publishes them to the Data Hub.
+
+The nodes reuse the FlatBuffer helpers from the standalone Node sample, so they speak the native NATS API.
+
+## Installation
+
+### From npm (recommended)
+```bash
+cd ~/.node-red
+npm install node-red-contrib-uos-nats
+```
+### From local folder (if you want to test before publishing)
+```bash
+npm install /path/to/local/NATS-NodeRED
+```
+
+Restart Node-RED. You will find the nodes under the *u-OS Data Hub* category.
+
+## u-OS Config Node
+
+Fields:
+
+- **Host / Port** – IP address of your controller (e.g. `192.168.10.100`) and the NATS port `49360`.
+- **Client Name** – used for the NATS inbox prefix (`_INBOX.<name>`).
+- **Client ID / Secret** – OAuth2 client credentials created in the Control Center.
+- **Token URL** – optional override, defaults to `https://<host>/oauth2/token`.
+- **Scope** – usually `hub.variables.provide hub.variables.readwrite`.
+
+The config node automatically fetches tokens via Client Credentials flow and exposes helper endpoints so other nodes can list providers and variables.
+
+## DataHub Input Node
+
+- Select the u-OS config node and pick a provider from the drop-down. The node queries `/datahub/v1/providers` and lists all registry entries.
+- Choose whether you want **all variables**, **single variable**, or **multi selection**. The variable selector is populated from `/datahub/v1/providers/<provider>/variables`.
+- The node outputs messages with the structure:
+  ```json
+  {
+    "type": "snapshot" | "change",
+    "variables": [
+      {
+        "providerId": "sampleprovider",
+        "id": 5,
+        "key": "diagnostics.status_text",
+        "value": "running",
+        "quality": "GOOD",
+        "timestampNs": 1700000000000
+      }
+    ]
+  }
+  ```
+- Deploy multiple nodes if you want to monitor different providers.
+
+## DataHub Output Node
+
+- Reuses the u-OS config node. The provider ID defaults to `nodered` and is created automatically.
+- Send a JSON object to the input pin. Nested objects become dot-separated keys (e.g. `{ "line1": { "status": "ok" } }` ⇒ `line1.status`).
+- The node infers data types (INT64/FLOAT64/BOOLEAN/STRING) and publishes `VariablesChangedEvent`s. New keys trigger an automatic provider definition update.
+- Read requests (`v1.loc.<provider>.vars.qry.read`) are answered using the most recent values, so other consumers can subscribe to your Node-RED provider.
+
+## Example Flow
+
+1. Drop a **u-OS Config** node, fill in host/port and OAuth credentials from the Control Center.
+2. Add a **DataHub Input** node, select the config, pick an existing provider (e.g. `u_os_adm`) and choose the variables you want to observe. Connect the output to a Debug node.
+3. Add a **DataHub Output** node, leave provider ID = `nodered` and send structured JSON (e.g. from a Function node). The values instantly appear in the Data Hub under the provider `nodered`.
+
+> Tip: Because both nodes rely on the Control Center HTTP API for metadata they inherit the same permissions as your OAuth client. Make sure the client has at least `hub.variables.readonly` for the input node and `hub.variables.provide hub.variables.readwrite` for the output node.
+
+## TODO
+
+- Export a sample Node-RED flow (`flows.json`).
+- Optional helper node for write commands targeting existing providers.
+- Automated tests.

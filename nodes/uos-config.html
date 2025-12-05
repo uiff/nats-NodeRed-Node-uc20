@@ -1,0 +1,48 @@
+<script type="text/javascript">
+  RED.nodes.registerType('uos-config', {
+    category: 'config',
+    defaults: {
+      host: { value: '192.168.10.100', required: true },
+      port: { value: 49360, required: true, validate: RED.validators.number() },
+      clientName: { value: 'nodered', required: true },
+      tokenEndpoint: { value: '', required: false },
+      scope: { value: 'hub.variables.provide hub.variables.readwrite', required: true },
+    },
+    credentials: {
+      clientId: { type: 'text', required: true },
+      clientSecret: { type: 'password', required: true },
+    },
+    label: function () {
+      return this.clientName ? `u-OS ${this.clientName}` : 'u-OS NATS';
+    },
+  });
+</script>
+
+<div class="form-row">
+  <label for="node-config-input-host"><i class="fa fa-globe"></i> Host</label>
+  <input type="text" id="node-config-input-host" placeholder="127.0.0.1">
+</div>
+<div class="form-row">
+  <label for="node-config-input-port"><i class="fa fa-plug"></i> Port</label>
+  <input type="number" id="node-config-input-port">
+</div>
+<div class="form-row">
+  <label for="node-config-input-clientName"><i class="fa fa-user"></i> Client Name</label>
+  <input type="text" id="node-config-input-clientName" placeholder="nodered">
+</div>
+<div class="form-row">
+  <label for="node-config-input-clientId"><i class="fa fa-id-card"></i> Client ID</label>
+  <input type="text" id="node-config-input-clientId">
+</div>
+<div class="form-row">
+  <label for="node-config-input-clientSecret"><i class="fa fa-key"></i> Client Secret</label>
+  <input type="password" id="node-config-input-clientSecret">
+</div>
+<div class="form-row">
+  <label for="node-config-input-tokenEndpoint"><i class="fa fa-lock"></i> Token URL</label>
+  <input type="text" id="node-config-input-tokenEndpoint" placeholder="https://HOST/oauth2/token">
+</div>
+<div class="form-row">
+  <label for="node-config-input-scope"><i class="fa fa-list"></i> Scope</label>
+  <input type="text" id="node-config-input-scope">
+</div>

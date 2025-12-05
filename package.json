@@ -1,0 +1,26 @@
+{
+  "name": "node-red-contrib-uos-nats",
+  "version": "0.1.2",
+  "description": "Node-RED nodes for u-OS Data Hub via NATS",
+  "license": "MIT",
+  "main": "nodes/uos-provider.js",
+  "keywords": [
+    "node-red",
+    "nats",
+    "uos",
+    "weidmueller",
+    "iotueli"
+  ],
+  "dependencies": {
+    "flatbuffers": "^25.9.23",
+    "nats": "^2.19.0",
+    "node-fetch": "^2.6.7"
+  },
+  "node-red": {
+    "nodes": {
+      "uos-config": "nodes/uos-config.js",
+      "datahub-input": "nodes/datahub-input.js",
+      "datahub-output": "nodes/datahub-output.js"
+    }
+  }
+}
