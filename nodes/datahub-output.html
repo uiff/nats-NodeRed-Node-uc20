@@ -10,17 +10,7 @@
     inputs: 1,
     outputs: 1,
     icon: "white/datahub-output.svg",
-    oneditprepare: function() {
-      const help = `
-      <b>DataHub Output node</b><br>
-      <ul>
-        <li><b>u-OS Config</b>: select the config node.</li>
-        <li><b>Provider ID</b>: defaults to <code>nodered</code> (will be registered automatically).</li>
-      </ul>
-      Send any JSON payload → nested objects become dot-separated keys (e.g. <code>{ diagnostics: { status_text: 'ok' } }</code> ⇢ <code>diagnostics.status_text</code>).
-      `;
-      $('#datahub-output-help').html(help);
-    },
+    oneditprepare: function() {},
     label: function () {
       return this.name || `Output ${this.providerId || ''}`;
     },
@@ -30,16 +20,35 @@
   });
 </script>
 
-<div class="form-row">
-  <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-  <input type="text" id="node-input-name">
-</div>
-<div class="form-row">
-  <label for="node-input-connection"><i class="fa fa-cube"></i> u-OS Config</label>
-  <input type="text" id="node-input-connection">
-</div>
-<div class="form-row">
-  <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
-  <input type="text" id="node-input-providerId" placeholder="nodered">
-</div>
-<div id="datahub-output-help" class="form-tips"></div>
+<script type="text/html" data-template-name="datahub-output">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-cube"></i> u-OS Config</label>
+    <input type="text" id="node-input-connection">
+  </div>
+  <div class="form-row">
+    <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
+    <input type="text" id="node-input-providerId" placeholder="nodered">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="datahub-output">
+  <p><strong>DataHub Output</strong> registers (if needed) and writes variables for the provider you specify.</p>
+  <dl>
+    <dt>u-OS Config</dt>
+    <dd>Connection node with host/port and OAuth credentials.</dd>
+    <dt>Provider ID</dt>
+    <dd>Defaults to <code>nodered</code>; change it if you want to publish under another provider name.</dd>
+  </dl>
+  <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation:</p>
+<pre>{
+  "diagnostics": {
+    "status_text": "running",
+    "error_count": 0
+  }
+}</pre>
+  <p>becomes variables <code>diagnostics.status_text</code> and <code>diagnostics.error_count</code> in the Data Hub.</p>
+</script>

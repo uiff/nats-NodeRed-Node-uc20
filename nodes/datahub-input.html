@@ -11,18 +11,7 @@
     inputs: 0,
     outputs: 1,
     icon: "white/datahub-input.svg",
-    oneditprepare: function() {
-      const help = `
-      <b>DataHub Input node</b><br>
-      <ul>
-        <li><b>u-OS Config</b>: choose the config node with host and OAuth credentials.</li>
-        <li><b>Provider ID</b>: e.g. <code>sampleprovider</code> or <code>u_os_adm</code>.</li>
-        <li><b>Variables</b>: leave empty for all variables or enter comma-separated keys like <code>diagnostics.status_text,diagnostics.error_count</code>.</li>
-      </ul>
-      The node outputs messages of the form <code>{ type: 'snapshot'|'change', variables: [...] }</code>.
-      `;
-      $('#datahub-input-help').html(help);
-    },
+    oneditprepare: function() {},
     label: function () {
       return this.name || `Input ${this.providerId || ''}`;
     },
@@ -32,20 +21,40 @@
   });
 </script>
 
-<div class="form-row">
-  <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-  <input type="text" id="node-input-name">
-</div>
-<div class="form-row">
-  <label for="node-input-connection"><i class="fa fa-cube"></i> u-OS Config</label>
-  <input type="text" id="node-input-connection">
-</div>
-<div class="form-row">
-  <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
-  <input type="text" id="node-input-providerId" placeholder="sampleprovider">
-</div>
-<div class="form-row">
-  <label for="node-input-variablesText"><i class="fa fa-list"></i> Variables (comma separated)</label>
-  <input type="text" id="node-input-variablesText" placeholder="diagnostics.status_text,diagnostics.error_count">
-</div>
-<div id="datahub-input-help" class="form-tips"></div>
+<script type="text/html" data-template-name="datahub-input">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-cube"></i> u-OS Config</label>
+    <input type="text" id="node-input-connection">
+  </div>
+  <div class="form-row">
+    <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
+    <input type="text" id="node-input-providerId" placeholder="sampleprovider">
+  </div>
+  <div class="form-row">
+    <label for="node-input-variablesText"><i class="fa fa-list"></i> Variables (comma separated)</label>
+    <input type="text" id="node-input-variablesText" placeholder="diagnostics.status_text,diagnostics.error_count">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="datahub-input">
+  <p><strong>DataHub Input</strong> subscribes to a provider via the u-OS Data Hub and emits JSON messages.</p>
+  <dl>
+    <dt>u-OS Config</dt>
+    <dd>Pick the connection node that holds host, port and OAuth credentials.</dd>
+    <dt>Provider ID</dt>
+    <dd>Provider to read (for example <code>sampleprovider</code> or <code>u_os_adm</code>).</dd>
+    <dt>Variables</dt>
+    <dd>Leave empty to stream all variables or enter comma separated keys such as <code>diagnostics.status_text,diagnostics.error_count</code>.</dd>
+  </dl>
+  <p>Each message has <code>msg.payload</code> shaped like:</p>
+<pre>{
+  "type": "snapshot" | "change",
+  "variables": [
+    { "name": "diagnostics.status_text", "value": "ready" }
+  ]
+}</pre>
+</script>

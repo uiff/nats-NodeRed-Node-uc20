@@ -22,7 +22,7 @@ npm install node-red-contrib-uos-nats
 npm install /path/to/local/NATS-NodeRED
 ```
 
-Restart Node-RED. You will find the nodes under the *u-OS Data Hub* category.
+Restart Node-RED. You will find the nodes under the *DataHub-NATS* category.
 
 ## u-OS Config Node
 

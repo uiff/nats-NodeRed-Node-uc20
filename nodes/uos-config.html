@@ -18,31 +18,44 @@
   });
 </script>
 
-<div class="form-row">
-  <label for="node-config-input-host"><i class="fa fa-globe"></i> Host</label>
-  <input type="text" id="node-config-input-host" placeholder="127.0.0.1">
-</div>
-<div class="form-row">
-  <label for="node-config-input-port"><i class="fa fa-plug"></i> Port</label>
-  <input type="number" id="node-config-input-port">
-</div>
-<div class="form-row">
-  <label for="node-config-input-clientName"><i class="fa fa-user"></i> Client Name</label>
-  <input type="text" id="node-config-input-clientName" placeholder="nodered">
-</div>
-<div class="form-row">
-  <label for="node-config-input-clientId"><i class="fa fa-id-card"></i> Client ID</label>
-  <input type="text" id="node-config-input-clientId">
-</div>
-<div class="form-row">
-  <label for="node-config-input-clientSecret"><i class="fa fa-key"></i> Client Secret</label>
-  <input type="password" id="node-config-input-clientSecret">
-</div>
-<div class="form-row">
-  <label for="node-config-input-tokenEndpoint"><i class="fa fa-lock"></i> Token URL</label>
-  <input type="text" id="node-config-input-tokenEndpoint" placeholder="https://HOST/oauth2/token">
-</div>
-<div class="form-row">
-  <label for="node-config-input-scope"><i class="fa fa-list"></i> Scope</label>
-  <input type="text" id="node-config-input-scope">
-</div>
+<script type="text/html" data-template-name="uos-config">
+  <div class="form-row">
+    <label for="node-config-input-host"><i class="fa fa-globe"></i> Host</label>
+    <input type="text" id="node-config-input-host" placeholder="127.0.0.1">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-port"><i class="fa fa-plug"></i> Port</label>
+    <input type="number" id="node-config-input-port">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-clientName"><i class="fa fa-user"></i> Client Name</label>
+    <input type="text" id="node-config-input-clientName" placeholder="nodered">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-clientId"><i class="fa fa-id-card"></i> Client ID</label>
+    <input type="text" id="node-config-input-clientId">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-clientSecret"><i class="fa fa-key"></i> Client Secret</label>
+    <input type="password" id="node-config-input-clientSecret">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-tokenEndpoint"><i class="fa fa-lock"></i> Token URL</label>
+    <input type="text" id="node-config-input-tokenEndpoint" placeholder="https://HOST/oauth2/token">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-scope"><i class="fa fa-list"></i> Scope</label>
+    <input type="text" id="node-config-input-scope">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="uos-config">
+  <p><strong>u-OS Config</strong> stores the shared connection settings for all DataHub nodes.</p>
+  <ul>
+    <li><strong>Host / Port</strong> – IP and NATS port of the controller (default <code>127.0.0.1:49360</code>).</li>
+    <li><strong>Client Name</strong> – Friendly identifier used in NATS connection logs.</li>
+    <li><strong>Client ID / Secret</strong> – OAuth credentials from your u-OS Control Center client.</li>
+    <li><strong>Token URL</strong> – Optional; defaults to <code>https://&lt;Host&gt;/oauth2/token</code> if left empty.</li>
+    <li><strong>Scope</strong> – Space separated scopes; e.g. <code>hub.variables.provide hub.variables.readwrite</code>.</li>
+  </ul>
+</script>
