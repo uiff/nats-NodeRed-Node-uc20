@@ -1,6 +1,6 @@
 # node-red-contrib-uos-nats
 
-**Note:** This custom Node-RED package is built and maintained by [IoTUeli](https://www.linkedin.com/in/iotueli/) and is **not** an official Weidmüller product. For questions, feature requests, or support please contact IoTUeli directly.
+**Note:** This custom Node-RED package is built and maintained by [IoTUeli](https://www.linkedin.com/in/iotueli/) and is **not** an official Weidmüller product. For questions, feature requests, or support please contact IoTUeli directly. Repository: <https://github.com/uiff/nats-NodeRed-Node-uc20>
 
 Node-RED nodes to read and write u-OS Data Hub variables via NATS. This package exposes three building blocks:
 
