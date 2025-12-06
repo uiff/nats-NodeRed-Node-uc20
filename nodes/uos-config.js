@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 const { connect } = require('nats');
-const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly';
+const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly hub.providers.read';
 
 if (!process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
