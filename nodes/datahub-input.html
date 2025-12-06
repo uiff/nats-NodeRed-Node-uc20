@@ -18,9 +18,13 @@
       const $providerHidden = $('#node-input-providerId');
       const $providerSelect = $('#datahub-provider-select');
       const $providerManual = $('#datahub-provider-manual');
+      const $providerRefresh = $('#datahub-provider-refresh');
       const $providerStatus = $('#datahub-provider-status');
+
       const $variablesHidden = $('#node-input-variablesText');
-      const $variables = $('#datahub-input-variables');
+      const $variables = $('#datahub-input-variables'); // Note: This selector might be wrong in previous code, checking container
+      const $variablesContainer = $('#datahub-variables-container');
+      const $varsRefresh = $('#datahub-vars-refresh');
       const $variablesStatus = $('#datahub-variables-status');
 
       const initialProvider = $providerHidden.val() || '';
@@ -143,47 +147,42 @@
               msg = 'Config not deployed yet. Please Deploy first.';
             }
             setVariableStatus(msg);
+            $variablesContainer.empty().append('<div style="color:#aaa; font-style:italic; padding:5px;">Error loading variables.</div>');
             $variables.prop('disabled', true);
-            $variables.empty();
             syncVariablesField();
           });
       };
 
-      const loadProviders = () => {
+      const loadProviders = (force = false) => {
         const configId = $config.val();
         if (!configId) {
-          $providerSelect.empty();
-          $providerSelect.append('<option value="">Select a u-OS config first</option>');
-          $providerSelect.prop('disabled', true);
-          showManualProvider('Pick or create a u-OS config node before selecting a provider.');
+          $providerSelect.empty().append('<option value="">Select a u-OS config first</option>').prop('disabled', true);
           setVariableStatus('');
-          $variables.empty();
-          $variables.prop('disabled', true);
+          $variablesContainer.empty().append('<div style="color:#aaa; font-style:italic; padding:5px;">Select a provider to load variables...</div>');
           return;
         }
+
         const seq = ++providerRequest;
 
-        // Check Global Cache First (from "Test Connection")
-        if (window.uOSProvidersCache && window.uOSProvidersCache[configId]) {
+        // Use cache only if not forced
+        if (!force && window.uOSProvidersCache && window.uOSProvidersCache[configId]) {
           console.log('Using cached providers for', configId);
-          // Simulate async for consistency
           setTimeout(() => {
-            if (seq === providerRequest) {
-              populateProviders(window.uOSProvidersCache[configId]);
-            }
+            if (seq === providerRequest) populateProviders(window.uOSProvidersCache[configId]);
           }, 0);
           return;
         }
 
         setProviderStatus('Loading providers…');
         $providerSelect.prop('disabled', true);
-        showSelectProvider();
+        // Removed showManualProvider/showSelectProvider logic - always assume Select
 
         $.getJSON(`uos/providers/${configId}`)
           .done((payload) => {
-            if (seq !== providerRequest) {
-              return;
-            }
+            if (seq !== providerRequest) return;
+            // Update cache on success
+            const list = normalizeProviders(payload);
+            if (window.uOSProvidersCache) window.uOSProvidersCache[configId] = list;
             populateProviders(payload);
           })
           .fail((xhr) => {
@@ -193,7 +192,9 @@
             if (xhr.status === 404 && error === 'config not found') {
               msg = 'Config not deployed yet. Please use "Test Connection" in Config Node or Deploy first.';
             }
-            showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually.`);
+            $providerSelect.empty().append('<option value="">Error loading providers</option>').prop('disabled', true);
+            setProviderStatus(`Error: ${msg} - Click Refresh to retry.`);
+            // Do NOT switch to manual input
           });
       };
 
@@ -201,33 +202,39 @@
         const list = normalizeProviders(payload);
         $providerSelect.empty();
         if (!list.length) {
-          $providerSelect.append('<option value="">No providers available</option>');
-          $providerSelect.prop('disabled', true);
-          setProviderStatus('No providers returned. Verify Data Hub access.');
-          showManualProvider('No providers returned. Enter the ID manually if you know it.');
+          $providerSelect.append('<option value="">No providers found</option>').prop('disabled', true);
+          setProviderStatus('No providers found. Verify Data Hub access.');
           return;
         }
+        let foundInitial = false;
         list.forEach((prov) => {
           const value = providerValue(prov);
-          if (!value) {
-            return;
-          }
-          const option = $('<option></option>')
-            .attr('value', value)
-            .text(providerLabel(prov));
+          if (!value) return;
+          const option = $('<option></option>').attr('value', value).text(providerLabel(prov));
           $providerSelect.append(option);
+          if (value === initialProvider) foundInitial = true;
         });
         $providerSelect.prop('disabled', false);
-        if (initialProvider) {
+
+        if (initialProvider && foundInitial) {
+          $providerSelect.val(initialProvider);
+        } else if (initialProvider) {
+          // Valid case: provider set but not in list? Or manual override needed?
+          // User said "no input", so we just show what we have. 
+          // Optionally add the current unknown provider as an option
+          $providerSelect.append($('<option></option>').attr('value', initialProvider).text(initialProvider + ' (unknown)'));
           $providerSelect.val(initialProvider);
         }
+
+        // Select first if nothing selected
         if (!$providerSelect.val()) {
           $providerSelect.val($providerSelect.find('option:first').attr('value'));
         }
+
         const selected = $providerSelect.val();
         setProviderValue(selected);
-        setProviderStatus('Choose the provider you want to subscribe to.');
-        loadVariables(selected);
+        setProviderStatus('');
+        loadVariables(selected, false); // Reload vars for selected
       };
 
       $variables.on('change', () => {
@@ -242,18 +249,19 @@
         loadVariables(value, false);
       });
 
-      $providerManual.on('change keyup paste', () => {
-        const value = $providerManual.val();
-        setProviderValue(value);
-        $variablesHidden.val('');
-        syncVariablesField();
-        if (value) {
-          loadVariables(value, false);
-        }
+      $providerRefresh.on('click', () => {
+        loadProviders(true); // Force refresh
       });
 
+      $varsRefresh.on('click', () => {
+        const prov = $providerSelect.val();
+        if (prov) loadVariables(prov, true);
+      });
+
+      // Removed $providerManual listeners as per instruction
+
       $config.on('change', () => {
-        loadProviders();
+        loadProviders(false);
       });
 
       syncVariablesField();
@@ -280,10 +288,12 @@
   </div>
   <div class="form-row">
     <label><i class="fa fa-id-badge"></i> Provider</label>
-    <div style="flex:1;">
-      <select id="datahub-provider-select" style="width:100%;"></select>
-      <input type="text" id="datahub-provider-manual" placeholder="provider id" style="width:100%; display:none;">
+    <div style="display:flex; align-items:center; flex:1; gap:5px;">
+      <select id="datahub-provider-select" style="flex:1;"></select>
+      <button type="button" id="datahub-provider-refresh" class="red-ui-button" title="Refresh Providers"><i class="fa fa-refresh"></i></button>
       <input type="hidden" id="node-input-providerId">
+      <!-- Manual input fallback kept hidden/removed from flow per user request -->
+      <input type="text" id="datahub-provider-manual" style="display:none;" disabled>
     </div>
   </div>
   <div class="form-row">
@@ -292,7 +302,14 @@
   </div>
   <div class="form-row">
     <label for="datahub-input-variables"><i class="fa fa-list"></i> Variables</label>
-    <div style="flex:1; border:1px solid #ccc; border-radius:4px; height:150px; overflow-y:scroll; padding:5px;" id="datahub-variables-container">
+    <div style="display:flex; align-items:center; flex:1; margin-bottom:5px;">
+        <span style="flex:1"></span>
+        <button type="button" id="datahub-vars-refresh" class="red-ui-button red-ui-button-small" title="Refresh Variables"><i class="fa fa-refresh"></i></button>
+    </div>
+  </div>
+  <div class="form-row">
+    <label></label>
+    <div style="border:1px solid #ccc; border-radius:4px; height:150px; overflow-y:scroll; padding:5px; margin-left:105px;" id="datahub-variables-container">
        <!-- Checkboxes will be inserted here -->
        <div style="color:#aaa; font-style:italic; padding:5px;">Select a provider to load variables...</div>
     </div>
