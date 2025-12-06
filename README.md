@@ -94,8 +94,8 @@ Process & forward to other systems
 Before configuring Node-RED, create an OAuth client on your u-OS device:
 
 1. Open the **u-OS Web Interface** (e.g., `http://192.168.10.100`)
-2. Go to **System** → **Access Control** → **OAuth Clients**
-3. Click **"Add Client"**
+2. Go to **u-OS Control Center** → **Identity & access** → **Clients**
+3. Click **"Add client"**
 4. Enter:
    - **Name:** `nodered`
    - **Scopes:** Select **all** `hub.variables.*` scopes:
@@ -406,7 +406,7 @@ Auto-discovery requires special permissions on the provider definition endpoint,
 - **DataHub - Write:** Sends commands **to other** providers. You write **to** them.
 
 ### Q: Where do I get Client ID/Secret?
-**A:** u-OS Web Interface → **System** → **Access Control** → **OAuth Clients** → **Add Client**
+**A:** u-OS Web Interface → **u-OS Control Center** → **Identity & access** → **Clients** → **Add client**
 
 ### Q: What are the required OAuth scopes?
 **A:** 
