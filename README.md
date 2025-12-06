@@ -38,8 +38,8 @@ The config node automatically fetches tokens via Client Credentials flow and exp
 
 ## DataHub Input Node
 
-- Select the u-OS config node, then choose one of the discovered providers from the dropdown (the node queries `/datahub/v1/providers` for you).
-- Pick the variables you need from the multi-select list. Leave it empty to receive all variables from the provider.
+- Select the u-OS config node, then choose one of the discovered providers from the dropdown (the node queries `/datahub/v1/providers` for you). If your OAuth client lacks read-only scope, the dropdown is disabled and you can type the provider ID manually.
+- Pick the variables you need from the multi-select list. Leave it empty to receive all variables from the provider. (When manual provider input is used the list may stay empty, because it also requires the read-only permission.)
 - The node outputs messages with the structure:
   ```json
   {
@@ -68,7 +68,7 @@ The config node automatically fetches tokens via Client Credentials flow and exp
 ## Example Flow
 
 1. Drop a **u-OS Config** node, fill in host/port and OAuth credentials from the Control Center.
-2. Add a **DataHub Input** node, select the config, enter the provider ID and optional comma-separated variable list. Connect the output to a Debug node.
+2. Add a **DataHub Input** node, select the config, choose the provider from the dropdown (or type the provider ID if the API access is restricted) and pick the variables you care about. Connect the output to a Debug node.
 3. Add a **DataHub Output** node, leave provider ID = `nodered` and send structured JSON (e.g. from a Function node). The values instantly appear in the Data Hub under the provider `nodered`.
 
 > Tip: Because both nodes rely on the Control Center HTTP API for metadata they inherit the same permissions as your OAuth client. Make sure the client has at least `hub.variables.readonly` for the input node and `hub.variables.provide hub.variables.readwrite` for the output node.

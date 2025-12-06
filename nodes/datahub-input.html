@@ -14,13 +14,15 @@
     oneditprepare: function() {
       const node = this;
       const $config = $('#node-input-connection');
-      const $provider = $('#node-input-providerId');
+      const $providerHidden = $('#node-input-providerId');
+      const $providerSelect = $('#datahub-provider-select');
+      const $providerManual = $('#datahub-provider-manual');
       const $providerStatus = $('#datahub-provider-status');
       const $variablesHidden = $('#node-input-variablesText');
       const $variables = $('#datahub-input-variables');
       const $variablesStatus = $('#datahub-variables-status');
 
-      const initialProvider = node.providerId;
+      const initialProvider = $providerHidden.val() || '';
       const initialVars = ($variablesHidden.val() || '')
         .split(',')
         .map((entry) => entry.trim())
@@ -67,6 +69,24 @@
 
       const setProviderStatus = (text) => $providerStatus.text(text || '');
       const setVariableStatus = (text) => $variablesStatus.text(text || '');
+
+      const setProviderValue = (value) => {
+        $providerHidden.val(value || '');
+      };
+
+      const getProviderValue = () => $providerHidden.val() || '';
+
+      const showManualProvider = (message) => {
+        $providerSelect.hide().prop('disabled', true);
+        $providerManual.show().prop('disabled', false);
+        $providerManual.val(getProviderValue());
+        setProviderStatus(message || 'Enter the provider ID manually.');
+      };
+
+      const showSelectProvider = () => {
+        $providerManual.hide().prop('disabled', true);
+        $providerSelect.show().prop('disabled', false);
+      };
 
       const loadVariables = (providerId, keepSelection = false) => {
         const configId = $config.val();
@@ -121,10 +141,10 @@
       const loadProviders = () => {
         const configId = $config.val();
         if (!configId) {
-          $provider.empty();
-          $provider.append('<option value="">Select a u-OS config first</option>');
-          $provider.prop('disabled', true);
-          setProviderStatus('Pick or create a u-OS config node before selecting a provider.');
+          $providerSelect.empty();
+          $providerSelect.append('<option value="">Select a u-OS config first</option>');
+          $providerSelect.prop('disabled', true);
+          showManualProvider('Pick or create a u-OS config node before selecting a provider.');
           setVariableStatus('');
           $variables.empty();
           $variables.prop('disabled', true);
@@ -132,18 +152,20 @@
         }
         const seq = ++providerRequest;
         setProviderStatus('Loading providers…');
-        $provider.prop('disabled', true);
+        $providerSelect.prop('disabled', true);
+        showSelectProvider();
         $.getJSON(`uos/providers/${configId}`)
           .done((payload) => {
             if (seq !== providerRequest) {
               return;
             }
             const list = normalizeProviders(payload);
-            $provider.empty();
+            $providerSelect.empty();
             if (!list.length) {
-              $provider.append('<option value="">No providers available</option>');
+              $providerSelect.append('<option value="">No providers available</option>');
+              $providerSelect.prop('disabled', true);
               setProviderStatus('No providers returned. Verify Data Hub access.');
-              $provider.prop('disabled', true);
+              showManualProvider('No providers returned. Enter the ID manually if you know it.');
               return;
             }
             list.forEach((prov) => {
@@ -154,24 +176,23 @@
               const option = $('<option></option>')
                 .attr('value', value)
                 .text(providerLabel(prov));
-              $provider.append(option);
+              $providerSelect.append(option);
             });
-            $provider.prop('disabled', false);
+            $providerSelect.prop('disabled', false);
             if (initialProvider) {
-              $provider.val(initialProvider);
+              $providerSelect.val(initialProvider);
             }
-            if (!$provider.val()) {
-              $provider.val($provider.find('option:first').attr('value'));
+            if (!$providerSelect.val()) {
+              $providerSelect.val($providerSelect.find('option:first').attr('value'));
             }
+            const selected = $providerSelect.val();
+            setProviderValue(selected);
             setProviderStatus('Choose the provider you want to subscribe to.');
-            loadVariables($provider.val());
+            loadVariables(selected);
           })
           .fail((xhr) => {
             const msg = xhr?.responseJSON?.error || xhr.statusText || 'Failed to load providers.';
-            $provider.empty();
-            $provider.append('<option value="">Unable to load providers</option>');
-            $provider.prop('disabled', true);
-            setProviderStatus(msg);
+            showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually or grant hub.variables.readonly.`);
           });
       };
 
@@ -179,10 +200,22 @@
         syncVariablesField();
       });
 
-      $provider.on('change', () => {
+      $providerSelect.on('change', () => {
+        const value = $providerSelect.val();
+        setProviderValue(value);
         $variablesHidden.val('');
         syncVariablesField();
-        loadVariables($provider.val(), false);
+        loadVariables(value, false);
+      });
+
+      $providerManual.on('change keyup paste', () => {
+        const value = $providerManual.val();
+        setProviderValue(value);
+        $variablesHidden.val('');
+        syncVariablesField();
+        if (value) {
+          loadVariables(value, false);
+        }
       });
 
       $config.on('change', () => {
@@ -212,8 +245,12 @@
     <input type="text" id="node-input-connection">
   </div>
   <div class="form-row">
-    <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider</label>
-    <select id="node-input-providerId"></select>
+    <label><i class="fa fa-id-badge"></i> Provider</label>
+    <div style="flex:1;">
+      <select id="datahub-provider-select" style="width:100%;"></select>
+      <input type="text" id="datahub-provider-manual" placeholder="provider id" style="width:100%; display:none;">
+      <input type="hidden" id="node-input-providerId">
+    </div>
   </div>
   <div class="form-row">
     <label></label>
