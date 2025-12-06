@@ -16,20 +16,20 @@
     oneditprepare: function () {
       const node = this;
       const $config = $('#node-input-connection');
-      const $providerHidden = $('#node-input-providerId');
-      const $providerSelect = $('#datahub-provider-select');
-      const $providerManual = $('#datahub-provider-manual');
-      const $providerRefresh = $('#datahub-provider-refresh');
-      const $providerStatus = $('#datahub-provider-status');
+      // The select now has id node-input-providerId, which matches the default field name.
+      // So Node-RED populates it automatically.
+      const $providerSelect = $('#node-input-providerId');
+      const $providerRefresh = $('#node-input-check-custom-provider');
+      // Status div is removed in new UI or not present
+      const $providerStatus = $('<div class="form-tips"></div>').insertAfter($providerSelect.parent());
 
       const $variablesHidden = $('#node-input-variablesText');
-      const $variables = $('#datahub-input-variables'); // Note: This selector might be wrong in previous code, checking container
-      const $variablesContainer = $('#datahub-variables-container');
-      const $varsRefresh = $('#datahub-vars-refresh');
-      const $variablesStatus = $('#datahub-variables-status');
+      const $variablesContainer = $('#node-input-variables-container');
+      const $varsRefresh = $('#node-input-refresh-vars');
+      const $variablesStatus = $('#vars-status');
 
-      const initialProvider = $providerHidden.val() || '';
-      const initialVars = ($variablesHidden.val() || '')
+      const initialProvider = node.providerId || '';
+      const initialVars = (node.variablesText || '')
         .split(',')
         .map((entry) => entry.trim())
         .filter((entry) => entry.length > 0);
@@ -349,14 +349,7 @@
 </script>
 
 <script type="text/html" data-template-name="datahub-input">
-  <div class="form-row">
-    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-    <input type="text" id="node-input-name">
-  </div>
-  <!-- Polling (ms) removed in favor of Input Port triggering -->
-  <div class="form-row">
-    <label for="node-input-connection"><i class="fa fa-cube"></i> u-OS Config</label>
-    <input type="text" id="node-input-connection">
+    <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
