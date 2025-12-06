@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-uos-nats",
-  "version": "0.1.65",
+  "version": "0.1.66",
   "description": "Node-RED nodes for Weidmüller u-OS Data Hub. Read and write variables via NATS protocol with OAuth2 authentication. Supports event-based subscriptions and manual variable mapping.",
   "author": {
     "name": "IoTUeli",
