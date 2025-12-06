@@ -128,6 +128,12 @@ module.exports = function (RED) {
       }
     };
 
+    this.on('input', (msg, send, done) => {
+      performSnapshot()
+        .then(() => done())
+        .catch((err) => done(err));
+    });
+
     start();
 
     this.on('close', async (done) => {
