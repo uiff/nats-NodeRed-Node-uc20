@@ -136,7 +136,11 @@
           })
           .fail((xhr) => {
             console.error('Variable load failed', xhr);
-            const msg = xhr?.responseJSON?.error || xhr.statusText || 'Failed to load variables.';
+            const error = xhr?.responseJSON?.error;
+            let msg = error || xhr.statusText || 'Failed to load variables.';
+            if (xhr.status === 404 && error === 'config not found') {
+              msg = 'Config not deployed yet. Please Deploy first.';
+            }
             setVariableStatus(msg);
             $variables.prop('disabled', true);
             $variables.empty();
@@ -198,8 +202,12 @@
           })
           .fail((xhr) => {
             console.error('Provider load failed', xhr);
-            const msg = xhr?.responseJSON?.error || xhr.statusText || 'Failed to load providers.';
-            showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually or grant hub.variables.readonly.`);
+            const error = xhr?.responseJSON?.error;
+            let msg = error || xhr.statusText || 'Failed to load providers.';
+            if (xhr.status === 404 && error === 'config not found') {
+              msg = 'Config not deployed yet. Please Deploy first.';
+            }
+            showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually.`);
           });
       };
 
