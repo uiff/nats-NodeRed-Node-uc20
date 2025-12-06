@@ -36,6 +36,56 @@ Restart Node-RED. The nodes appear in the **"u-OS DataHub NATS"** category in th
 
 ---
 
+## Why NATS Instead of REST API?
+
+The u-OS Data Hub offers both **NATS** (this package) and **REST API** access. Here's why NATS is the better choice for Node-RED:
+
+### Feature Comparison
+
+| Feature | NATS Protocol | REST API |
+|---------|---------------|----------|
+| **Real-time Updates** | ✅ Event-driven (instant) | ❌ Polling required (delays) |
+| **Performance** | ✅ Binary protocol, high-throughput | ❌ HTTP/JSON overhead |
+| **Communication** | ✅ Bidirectional (Pub/Sub + Request/Reply) | ❌ Client-initiated only |
+| **Provider Registration** | ✅ Dynamic discovery & auto-registration | ❌ Static endpoints |
+| **Scalability** | ✅ Many-to-many connections | ❌ Point-to-point requests |
+| **Network Efficiency** | ✅ Push notifications (no polling waste) | ❌ Repeated GET requests |
+
+### Event-Driven Architecture
+
+**NATS enables true event-driven workflows:**
+
+```
+Sensor changes value
+       ↓
+Data Hub publishes event via NATS
+       ↓
+Node-RED receives update INSTANTLY (0ms delay)
+       ↓
+Process & forward to other systems
+```
+
+**With REST API you'd need:**
+- Constant polling (e.g., every 100ms)
+- Increased network traffic
+- Delayed reactions
+- Higher CPU usage
+
+### Use NATS when:
+
+✅ You need **real-time reactions** to value changes  
+✅ You want to **create providers** (publish data to Data Hub)  
+✅ You need **event subscriptions** (get notified on changes)  
+✅ You're building **scalable industrial workflows**  
+
+### Use REST API when:
+
+⚠️ You only need **occasional manual reads**  
+⚠️ You're debugging or doing one-time queries  
+⚠️ NATS port (49360) is blocked in your network  
+
+---
+
 ## 1. u-OS Config Node
 
 ### Purpose
