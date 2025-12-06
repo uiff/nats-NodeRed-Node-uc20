@@ -284,7 +284,7 @@ module.exports = function (RED) {
         nc = await connect({
           servers: `nats://${host}:${port || 49360}`,
           token,
-          name: 'nodered-check',
+          name: `nodered-check-${Date.now()}`,
           waitOnFirstConnect: true,
           maxReconnectAttempts: 1,
         });
