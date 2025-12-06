@@ -83,19 +83,38 @@ module.exports = function (RED) {
         this.status({ fill: 'green', shape: 'dot', text: 'connected' });
 
         performSnapshot = async () => {
-          // Only request snapshot if connected
-          if (!nc || nc.isClosed()) return;
+          // Debugging connection state
+          if (!nc || nc.isClosed()) {
+            this.warn('Snapshot skipped: Connection is closed or not ready.');
+            return;
+          }
+
           try {
+            // Log before request
+            // this.warn(`Requesting snapshot for ${this.providerId}... (DefMap size: ${defMap.size})`);
+
             const snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(), { timeout: 2000 });
+
             const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
             const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
             const states = payloads.decodeVariableList(snapshotObj.variables());
+
+            // this.warn(`Received ${states.length} items from NATS.`);
+
             const filteredSnapshot = processStates(states);
+
+            // this.warn(`Filtered down to ${filteredSnapshot.length} items. (Selected vars: ${this.variables.length})`);
+
             if (filteredSnapshot.length) {
               this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
+            } else {
+              if (states.length > 0) {
+                this.warn(`Snapshot received data but everything was filtered out. Check Variable selection. Debug: First raw ID: ${states[0].id}, DefMap has it? ${defMap.has(states[0].id)}`);
+              } else {
+                this.warn('Snapshot received empty list from Data Hub.');
+              }
             }
           } catch (requestErr) {
-            // Log snapshot failures to help debugging
             this.warn(`Snapshot failed: ${requestErr.message}`);
           }
         };
