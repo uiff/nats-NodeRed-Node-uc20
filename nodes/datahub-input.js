@@ -27,6 +27,7 @@ module.exports = function (RED) {
     }
 
     this.providerId = config.providerId || 'sampleprovider';
+    this.pollingInterval = parseInt(config.pollingInterval, 10) || 0; // ms, 0 = disabled (default)
     const text = config.variablesText || '';
     this.variables = text
       .split(',')
@@ -65,18 +66,43 @@ module.exports = function (RED) {
         const [payloads, subjects, readRespMod, changeEventMod] = await loadModules();
         const { ReadVariablesQueryResponse } = readRespMod;
         const { VariablesChangedEvent } = changeEventMod;
-        const definitions = await connection.fetchProviderVariables(this.providerId);
-        definitions.forEach((def) => defMap.set(def.id, def));
+
+        try {
+          const definitions = await connection.fetchProviderVariables(this.providerId);
+          definitions.forEach((def) => defMap.set(def.id, def));
+        } catch (e) {
+          this.warn(`Could not fetch variable definitions: ${e.message}`);
+        }
+
         nc = await connection.acquire();
         this.status({ fill: 'green', shape: 'dot', text: 'connected' });
 
-        const snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(), { timeout: 2000 });
-        const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
-        const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
-        const states = payloads.decodeVariableList(snapshotObj.variables());
-        const filteredSnapshot = processStates(states);
-        if (filteredSnapshot.length) {
-          this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
+        const performSnapshot = async () => {
+          // Only request snapshot if connected
+          if (!nc || nc.isClosed()) return;
+          try {
+            const snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(), { timeout: 2000 });
+            const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
+            const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
+            const states = payloads.decodeVariableList(snapshotObj.variables());
+            const filteredSnapshot = processStates(states);
+            if (filteredSnapshot.length) {
+              this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
+            }
+          } catch (requestErr) {
+            // Snapshot failed (timeout or no provider), log but don't stop
+            // this.warn(`Snapshot failed: ${requestErr.message}`);
+          }
+        };
+
+        // Initial snapshot
+        await performSnapshot();
+
+        // Setup polling if configured
+        if (this.pollingInterval > 0) {
+          this.pollingTimer = setInterval(() => {
+            performSnapshot().catch(err => this.error(`Polling error: ${err.message}`));
+          }, this.pollingInterval);
         }
 
         sub = nc.subscribe(subjects.varsChangedEvent(this.providerId));
@@ -105,6 +131,10 @@ module.exports = function (RED) {
     start();
 
     this.on('close', async (done) => {
+      if (this.pollingTimer) {
+        clearInterval(this.pollingTimer);
+        this.pollingTimer = null;
+      }
       if (closed) {
         done();
         return;

@@ -5,8 +5,9 @@
     defaults: {
       name: { value: '' },
       connection: { type: 'uos-config', required: true },
-      providerId: { value: '', required: true },
-      variablesText: { value: '' }
+      providerId: { value: '', required: false },
+      variablesText: { value: '', required: false },
+      pollingInterval: { value: 0, required: false, validate: RED.validators.number() },
     },
     inputs: 0,
     outputs: 1,
