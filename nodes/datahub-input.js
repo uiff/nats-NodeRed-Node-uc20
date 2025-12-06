@@ -89,11 +89,39 @@ module.exports = function (RED) {
           const definitions = await connection.fetchProviderVariables(this.providerId);
           definitions.forEach((def) => defMap.set(def.id, def));
         } catch (e) {
-          this.warn(`Could not fetch variable definitions: ${e.message}`);
+          this.warn(`REST API failed (${e.message}). Attempting NATS fallback...`);
+          try {
+            // Fallback: Fetch definitions via NATS
+            // We need to load the response type dynamically as well if not already loaded
+            const { ReadProviderDefinitionQueryResponse } = await import(pathToFileURL(path.join(__dirname, '..', 'lib', 'fbs', 'weidmueller', 'ucontrol', 'hub', 'read-provider-definition-query-response.js')).href);
+
+            // Ensure we have a connection even if start() isn't fully done (we might need to move this)
+            // But 'nc' is acquired below. Let's acquire it first if possible, or do this AFTER acquired.
+            // Refactoring: We will move this logic 'down' after nc is acquired.
+          } catch (natsErr) {
+            this.warn(`NATS definition fetch also failed: ${natsErr.message}`);
+          }
         }
 
         nc = await connection.acquire();
         this.status({ fill: 'green', shape: 'dot', text: 'connected' });
+
+        // Retry Definition Fetch via NATS if Map is empty
+        if (defMap.size === 0) {
+          try {
+            this.warn(`Attempting to fetch definitions via NATS for ${this.providerId}...`);
+            const defMsg = await nc.request(`v1.loc.${this.providerId}.def.qry.read`, new Uint8Array(0), { timeout: 2000 });
+            // We need to decode this manually or use a helper
+            // Importing payloads to use our new decode function
+            // Assuming payloads is already loaded above
+
+            const defs = payloads.decodeProviderDefinition(defMsg.data);
+            this.warn(`NATS Fallback: Loaded ${defs.length} definitions.`);
+            defs.forEach((def) => defMap.set(def.id, def));
+          } catch (err) {
+            this.warn(`NATS Fallback failed: ${err.message}`);
+          }
+        }
 
         performSnapshot = async () => {
           // Debugging connection state
