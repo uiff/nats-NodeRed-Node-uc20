@@ -48,11 +48,14 @@ module.exports = function (RED) {
     };
 
     const processStates = (states) => {
+      // Helper to find definition by ID (fuzzy match string/number)
+      const getDef = (id) => defMap.get(id) || defMap.get(String(id)) || defMap.get(Number(id));
+
       return states
         .map((state) => ({
           providerId: this.providerId,
           id: state.id,
-          key: defMap.get(state.id)?.key || state.id,
+          key: getDef(state.id)?.key || state.id,
           value: state.value,
           quality: state.quality,
           timestampNs: state.timestampNs,
@@ -92,7 +95,8 @@ module.exports = function (RED) {
               this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
             }
           } catch (requestErr) {
-            // Snapshot failed (timeout or no provider), log but don't stop
+            // Log snapshot failures to help debugging
+            this.warn(`Snapshot failed: ${requestErr.message}`);
           }
         };
 
