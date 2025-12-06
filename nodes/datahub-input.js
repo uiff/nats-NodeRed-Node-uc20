@@ -135,8 +135,13 @@ module.exports = function (RED) {
             let targetIds = [];
             if (this.variables.length > 0) {
               // Reverse lookup: Find Def by Key
-              // Only needed if we want to filter at source (which we do now to avoid empty list issues)
               const requestedKeys = new Set(this.variables);
+
+              // Debug Map Content before filtering
+              // if (defMap.size > 0 && providerRequestCount < 2) { 
+              //    this.warn(`DefMap Dump (Size ${defMap.size}): ${Array.from(defMap.values()).map(d=>d.key).slice(0,5).join(', ')} ...`);
+              // }
+
               for (const def of defMap.values()) {
                 if (requestedKeys.has(def.key)) {
                   targetIds.push(Number(def.id));
@@ -145,7 +150,12 @@ module.exports = function (RED) {
               if (targetIds.length === 0 && defMap.size > 0) {
                 // We have definitions but found no matching keys for our config.
                 // This implies misconfiguration or name changes.
+                const sampleKeys = Array.from(defMap.values()).map(d => `'${d.key}'`).slice(0, 5).join(', ');
+                const reqSample = this.variables.map(v => `'${v}'`).slice(0, 5).join(', ');
                 this.warn(`Snapshot Warning: None of the ${this.variables.length} configured variables were found in the Provider Definition.`);
+                this.warn(`   -> Requested: [${reqSample}...]`);
+                this.warn(`   -> Available in DefMap (Size: ${defMap.size}): [${sampleKeys}...]`);
+                this.warn(`   -> Please check for typos or prefix mismatches.`);
               }
             }
 
