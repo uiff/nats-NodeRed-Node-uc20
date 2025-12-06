@@ -60,6 +60,8 @@ module.exports = function (RED) {
         .filter((state) => shouldInclude(state.key));
     };
 
+    let performSnapshot = async () => { }; // Placeholder
+
     const start = async () => {
       try {
         this.status({ fill: 'yellow', shape: 'ring', text: 'connecting…' });
@@ -77,7 +79,7 @@ module.exports = function (RED) {
         nc = await connection.acquire();
         this.status({ fill: 'green', shape: 'dot', text: 'connected' });
 
-        const performSnapshot = async () => {
+        performSnapshot = async () => {
           // Only request snapshot if connected
           if (!nc || nc.isClosed()) return;
           try {
@@ -91,9 +93,10 @@ module.exports = function (RED) {
             }
           } catch (requestErr) {
             // Snapshot failed (timeout or no provider), log but don't stop
-            // this.warn(`Snapshot failed: ${requestErr.message}`);
           }
         };
+
+
 
         // Initial snapshot
         await performSnapshot();
