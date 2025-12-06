@@ -43,7 +43,11 @@ The config node automatically fetches tokens via Client Credentials flow.
 - **Variables**: Select a provider, then click *Refresh* to load its variables. **Note:** To load variables, the Config Node **must be deployed** first!
 - **Variables**: Select a provider, then click *Refresh* to load its variables.
     - **Note:** To load variables, the Config Node **must be deployed** first!
-    - **Manual Mapping**: If Discovery fails (e.g. permission errors), you can enter variables manually in the format `Name:ID` (e.g. `pressure:5, temp:6`). This bypasses the API/NATS lookup.
+    - **Manual Variable Mapping**: If Discovery fails (e.g. permission errors), use the **Manual Definition Map** table in the node config.
+      1.  Find the **ID (Integer)** of your variable in your **Python Config** or the **Data Hub Web UI** (e.g. `digital_nameplate.manufacturer_name` might be ID `0` or `5` depending on the system).
+      2.  Click **Add Mapping**.
+      3.  Enter the **Name** and **ID**.
+      This bypasses the API/NATS lookup and directly requests the specific ID.
 - **Input Port Triggers**: The Input Node now accepts messages on its input port. Sending any message (e.g. from an **Inject** or **Timestamp** node) triggers an immediate snapshot of all values. This replaces the internal "Polling Interval" setting, giving you full control via standard Node-RED flows.
 - **Troubleshooting**: 
     - If lists remain empty, check the Node-RED debug tab. Ensure your OAuth client has `hub.variables.readonly` permission.
