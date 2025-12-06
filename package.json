@@ -1,30 +1,48 @@
 {
   "name": "node-red-contrib-uos-nats",
-  "version": "0.1.61",
-  "description": "Node-RED nodes for u-OS Data Hub via NATS",
+  "version": "0.1.62",
+  "description": "Node-RED nodes for Weidmüller u-OS Data Hub. Read and write variables via NATS protocol with OAuth2 authentication. Supports event-based subscriptions and manual variable mapping.",
+  "author": {
+    "name": "IoTUeli",
+    "url": "https://www.linkedin.com/in/iotueli/"
+  },
+  "contributors": [],
   "repository": {
     "type": "git",
     "url": "https://github.com/uiff/nats-NodeRed-Node-uc20.git"
   },
-  "homepage": "https://github.com/uiff/nats-NodeRed-Node-uc20",
+  "homepage": "https://github.com/uiff/nats-NodeRed-Node-uc20#readme",
   "bugs": {
     "url": "https://github.com/uiff/nats-NodeRed-Node-uc20/issues"
   },
   "license": "MIT",
-  "main": "nodes/uos-provider.js",
   "keywords": [
     "node-red",
     "nats",
     "uos",
+    "u-os",
     "weidmueller",
-    "iotueli"
+    "weidmüller",
+    "data-hub",
+    "datahub",
+    "industrial",
+    "iot",
+    "automation",
+    "plc",
+    "variables",
+    "oauth2",
+    "flatbuffers"
   ],
+  "engines": {
+    "node": ">=14.0.0"
+  },
   "dependencies": {
     "flatbuffers": "^25.9.23",
     "nats": "^2.19.0",
     "node-fetch": "^2.6.7"
   },
   "node-red": {
+    "version": ">=2.0.0",
     "nodes": {
       "uos-config": "nodes/uos-config.js",
       "datahub-input": "nodes/datahub-input.js",
