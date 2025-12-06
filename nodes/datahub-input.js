@@ -29,15 +29,33 @@ module.exports = function (RED) {
     this.providerId = config.providerId || 'sampleprovider';
     this.pollingInterval = parseInt(config.pollingInterval, 10) || 0; // ms, 0 = disabled (default)
     const text = config.variablesText || '';
+
+    // Parse variables, supporting "Name:ID" format for manual mapping
+    this.manualDefs = [];
     this.variables = text
       .split(',')
-      .map((entry) => (entry ? String(entry).trim() : ''))
+      .map((entry) => {
+        let trimmed = entry ? String(entry).trim() : '';
+        if (trimmed.includes(':')) {
+          const parts = trimmed.split(':');
+          const name = parts[0].trim();
+          const id = parseInt(parts[1].trim(), 10);
+          if (name && !isNaN(id)) {
+            this.manualDefs.push({ id, key: name });
+            return name;
+          }
+        }
+        return trimmed;
+      })
       .filter((entry) => entry.length > 0);
 
     let nc;
     let sub;
     let closed = false;
     const defMap = new Map();
+
+    // Pre-populate raw map with manual definitions
+    this.manualDefs.forEach(d => defMap.set(d.id, { ...d, type: 'MANUAL', dataType: 'UNKNOWN', access: 'READ_ONLY' }));
 
     const shouldInclude = (key) => {
       if (!this.variables.length) {
@@ -61,8 +79,9 @@ module.exports = function (RED) {
       }));
 
       // Warn if we have filters but no definitions (all keys will be raw IDs)
+      // Skip warning if we have manual definitions or successfully loaded map
       if (this.variables.length > 0 && defMap.size === 0 && mapped.length > 0) {
-        this.warnOnce('Filtering active but Variable Definitions failed to load (API Error). Names cannot be resolved, so filters will likely block all data. Please fix the API error (check Provider ID/Permissions).');
+        this.warnOnce('Filtering active but Variable Definitions failed to load (API Error). Names cannot be resolved. Try using "Name:ID" format to manually map variables.');
       }
 
       return mapped.filter((state) => shouldInclude(state.key));
@@ -85,29 +104,37 @@ module.exports = function (RED) {
         const { ReadVariablesQueryResponse } = readRespMod;
         const { VariablesChangedEvent } = changeEventMod;
 
+        // Try to fetch definitions (Discovery), but respect manual defs
         try {
+          // Verify connection first or use connection helper? 
+          // fetchProviderVariables uses HTTP, so it's independent of 'nc'
           const definitions = await connection.fetchProviderVariables(this.providerId);
           definitions.forEach((def) => defMap.set(def.id, def));
         } catch (e) {
-          this.warn(`REST API failed (${e.message}). Attempting NATS fallback...`);
+          // Only warn if we don't have manual defs to fall back on
+          if (this.manualDefs.length === 0) {
+            this.warn(`REST API failed (${e.message}). Attempting NATS fallback...`);
+          } else {
+            this.warn(`REST API Discovery failed, but using ${this.manualDefs.length} manual definitions.`);
+          }
+
           try {
             // Fallback: Fetch definitions via NATS
-            // We need to load the response type dynamically as well if not already loaded
+            // ... import and logic remains ... 
+            // We can skip NATS fetch if manual defs are sufficient? 
+            // Better to try anyway to get Metadata (DataType etc).
             const { ReadProviderDefinitionQueryResponse } = await import(pathToFileURL(path.join(__dirname, '..', 'lib', 'fbs', 'weidmueller', 'ucontrol', 'hub', 'read-provider-definition-query-response.js')).href);
-
-            // Ensure we have a connection even if start() isn't fully done (we might need to move this)
-            // But 'nc' is acquired below. Let's acquire it first if possible, or do this AFTER acquired.
-            // Refactoring: We will move this logic 'down' after nc is acquired.
           } catch (natsErr) {
-            this.warn(`NATS definition fetch also failed: ${natsErr.message}`);
+            if (this.manualDefs.length === 0) this.warn(`NATS definition fetch also failed: ${natsErr.message}`);
           }
         }
+
 
         nc = await connection.acquire();
         this.status({ fill: 'green', shape: 'dot', text: 'connected' });
 
-        // Retry Definition Fetch via NATS if Map is empty
-        if (defMap.size === 0) {
+        // Retry Definition Fetch via NATS if Map is empty AND no manual defs
+        if (defMap.size === 0 && this.manualDefs.length === 0) {
           try {
             this.warn(`Attempting to fetch definitions via NATS for ${this.providerId}...`);
             const defMsg = await nc.request(`v1.loc.${this.providerId}.def.qry.read`, new Uint8Array(0), { timeout: 2000 });
@@ -148,14 +175,12 @@ module.exports = function (RED) {
                 }
               }
               if (targetIds.length === 0 && defMap.size > 0) {
-                // We have definitions but found no matching keys for our config.
-                // This implies misconfiguration or name changes.
-                const sampleKeys = Array.from(defMap.values()).map(d => `'${d.key}'`).slice(0, 5).join(', ');
-                const reqSample = this.variables.map(v => `'${v}'`).slice(0, 5).join(', ');
+                // Warning logic ...
+                const sampleKeys = Array.from(defMap.values()).filter(d => d.type !== 'MANUAL').map(d => `'${d.key}'`).slice(0, 5).join(', ');
                 this.warn(`Snapshot Warning: None of the ${this.variables.length} configured variables were found in the Provider Definition.`);
-                this.warn(`   -> Requested: [${reqSample}...]`);
-                this.warn(`   -> Available in DefMap (Size: ${defMap.size}): [${sampleKeys}...]`);
-                this.warn(`   -> Please check for typos or prefix mismatches.`);
+                if (!sampleKeys && this.manualDefs.length > 0) {
+                  this.warn('   -> Manual Definitions are configured but did not match the requested variable names? Check capitalization.');
+                }
               }
             }
 
