@@ -271,7 +271,7 @@ module.exports = function (RED) {
           maxReconnectAttempts: 1,
         });
 
-        res.json({ success: true, providers: count, connected: true });
+        res.json({ success: true, providers: count, providersList: providers, connected: true });
       }
       catch (err) {
         res.status(500).json({ error: err.message });

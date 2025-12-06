@@ -163,6 +163,8 @@ module.exports = function (RED) {
             });
             if (definitionsChanged) {
               await sendDefinitionUpdate(payloadsMod, subjectsMod);
+              // Give Data Hub a moment to process the new definition before sending values
+              await new Promise(r => setTimeout(r, 100));
             }
             const payload = payloadsMod.buildVariablesChangedEvent(definitions, states, fingerprint);
             await nc.publish(subjectsMod.varsChangedEvent(this.providerId), payload);
