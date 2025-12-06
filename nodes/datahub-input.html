@@ -5,13 +5,194 @@
     defaults: {
       name: { value: '' },
       connection: { type: 'uos-config', required: true },
-      providerId: { value: 'sampleprovider', required: true },
+      providerId: { value: '', required: true },
       variablesText: { value: '' }
     },
     inputs: 0,
     outputs: 1,
     icon: "white/datahub-input.svg",
-    oneditprepare: function() {},
+    oneditprepare: function() {
+      const node = this;
+      const $config = $('#node-input-connection');
+      const $provider = $('#node-input-providerId');
+      const $providerStatus = $('#datahub-provider-status');
+      const $variablesHidden = $('#node-input-variablesText');
+      const $variables = $('#datahub-input-variables');
+      const $variablesStatus = $('#datahub-variables-status');
+
+      const initialProvider = node.providerId;
+      const initialVars = ($variablesHidden.val() || '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+
+      const normalizeProviders = (payload) => {
+        if (!payload) {
+          return [];
+        }
+        if (Array.isArray(payload)) {
+          return payload;
+        }
+        if (Array.isArray(payload.providers)) {
+          return payload.providers;
+        }
+        return [];
+      };
+
+      const normalizeVariables = (payload) => {
+        if (!payload) {
+          return [];
+        }
+        if (Array.isArray(payload)) {
+          return payload;
+        }
+        if (Array.isArray(payload.variables)) {
+          return payload.variables;
+        }
+        return [];
+      };
+
+      const providerLabel = (provider) => provider.name || provider.displayName || provider.providerId || provider.id || 'Unnamed provider';
+      const providerValue = (provider) => provider.providerId || provider.id || provider.name || '';
+      const variableValue = (variable) => variable.key || variable.name || variable.path || variable.id || '';
+      const variableLabel = (variable) => variable.tagName || variable.key || variable.name || variable.path || variable.id || 'Unnamed variable';
+
+      const syncVariablesField = () => {
+        const values = $variables.val() || [];
+        $variablesHidden.val(values.join(','));
+      };
+
+      let providerRequest = 0;
+      let variableRequest = 0;
+
+      const setProviderStatus = (text) => $providerStatus.text(text || '');
+      const setVariableStatus = (text) => $variablesStatus.text(text || '');
+
+      const loadVariables = (providerId, keepSelection = false) => {
+        const configId = $config.val();
+        if (!configId || !providerId) {
+          $variables.empty();
+          setVariableStatus('Select a provider to load variables.');
+          return;
+        }
+        const seq = ++variableRequest;
+        setVariableStatus('Loading variables…');
+        $variables.prop('disabled', true);
+        $.getJSON(`uos/providers/${configId}/${encodeURIComponent(providerId)}/variables`)
+          .done((payload) => {
+            if (seq !== variableRequest) {
+              return;
+            }
+            const vars = normalizeVariables(payload);
+            $variables.empty();
+            if (!vars.length) {
+              setVariableStatus('No variables returned. Check Data Hub permissions.');
+              $variables.prop('disabled', true);
+              syncVariablesField();
+              return;
+            }
+            vars.forEach((variable) => {
+              const value = variableValue(variable);
+              if (!value) {
+                return;
+              }
+              const option = $('<option></option>')
+                .attr('value', value)
+                .text(variableLabel(variable));
+              $variables.append(option);
+            });
+            $variables.prop('disabled', false);
+            const preset = keepSelection ? ($variablesHidden.val() || '').split(',').map((entry) => entry.trim()).filter(Boolean) : initialVars;
+            if (preset.length) {
+              $variables.val(preset);
+            }
+            syncVariablesField();
+            setVariableStatus('Select one or multiple variables (Ctrl/Cmd + click). Leave empty to receive all.');
+          })
+          .fail((xhr) => {
+            const msg = xhr?.responseJSON?.error || xhr.statusText || 'Failed to load variables.';
+            setVariableStatus(msg);
+            $variables.prop('disabled', true);
+            $variables.empty();
+            syncVariablesField();
+          });
+      };
+
+      const loadProviders = () => {
+        const configId = $config.val();
+        if (!configId) {
+          $provider.empty();
+          $provider.append('<option value="">Select a u-OS config first</option>');
+          $provider.prop('disabled', true);
+          setProviderStatus('Pick or create a u-OS config node before selecting a provider.');
+          setVariableStatus('');
+          $variables.empty();
+          $variables.prop('disabled', true);
+          return;
+        }
+        const seq = ++providerRequest;
+        setProviderStatus('Loading providers…');
+        $provider.prop('disabled', true);
+        $.getJSON(`uos/providers/${configId}`)
+          .done((payload) => {
+            if (seq !== providerRequest) {
+              return;
+            }
+            const list = normalizeProviders(payload);
+            $provider.empty();
+            if (!list.length) {
+              $provider.append('<option value="">No providers available</option>');
+              setProviderStatus('No providers returned. Verify Data Hub access.');
+              $provider.prop('disabled', true);
+              return;
+            }
+            list.forEach((prov) => {
+              const value = providerValue(prov);
+              if (!value) {
+                return;
+              }
+              const option = $('<option></option>')
+                .attr('value', value)
+                .text(providerLabel(prov));
+              $provider.append(option);
+            });
+            $provider.prop('disabled', false);
+            if (initialProvider) {
+              $provider.val(initialProvider);
+            }
+            if (!$provider.val()) {
+              $provider.val($provider.find('option:first').attr('value'));
+            }
+            setProviderStatus('Choose the provider you want to subscribe to.');
+            loadVariables($provider.val());
+          })
+          .fail((xhr) => {
+            const msg = xhr?.responseJSON?.error || xhr.statusText || 'Failed to load providers.';
+            $provider.empty();
+            $provider.append('<option value="">Unable to load providers</option>');
+            $provider.prop('disabled', true);
+            setProviderStatus(msg);
+          });
+      };
+
+      $variables.on('change', () => {
+        syncVariablesField();
+      });
+
+      $provider.on('change', () => {
+        $variablesHidden.val('');
+        syncVariablesField();
+        loadVariables($provider.val(), false);
+      });
+
+      $config.on('change', () => {
+        loadProviders();
+      });
+
+      syncVariablesField();
+      // Delay provider loading slightly to ensure the config typedInput is ready.
+      setTimeout(() => loadProviders(), 100);
+    },
     label: function () {
       return this.name || `Input ${this.providerId || ''}`;
     },
@@ -31,12 +212,23 @@
     <input type="text" id="node-input-connection">
   </div>
   <div class="form-row">
-    <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
-    <input type="text" id="node-input-providerId" placeholder="sampleprovider">
+    <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider</label>
+    <select id="node-input-providerId"></select>
   </div>
   <div class="form-row">
-    <label for="node-input-variablesText"><i class="fa fa-list"></i> Variables (comma separated)</label>
-    <input type="text" id="node-input-variablesText" placeholder="diagnostics.status_text,diagnostics.error_count">
+    <label></label>
+    <div id="datahub-provider-status" class="form-tips"></div>
+  </div>
+  <div class="form-row">
+    <label for="datahub-input-variables"><i class="fa fa-list"></i> Variables</label>
+    <div style="flex:1;">
+      <select id="datahub-input-variables" multiple size="6" style="width:100%;"></select>
+      <input type="hidden" id="node-input-variablesText">
+    </div>
+  </div>
+  <div class="form-row">
+    <label></label>
+    <div id="datahub-variables-status" class="form-tips">Leave empty to listen to every variable.</div>
   </div>
 </script>
 
@@ -46,9 +238,9 @@
     <dt>u-OS Config</dt>
     <dd>Pick the connection node that holds host, port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
-    <dd>Provider to read (for example <code>sampleprovider</code> or <code>u_os_adm</code>).</dd>
+    <dd>Provider to read. The drop-down lists every provider returned by the Control Center REST API.</dd>
     <dt>Variables</dt>
-    <dd>Leave empty to stream all variables or enter comma separated keys such as <code>diagnostics.status_text,diagnostics.error_count</code>.</dd>
+    <dd>Select one or more variable keys (single/multi-select). Leave unselected to stream all variables from the provider.</dd>
   </dl>
   <p>Each message has <code>msg.payload</code> shaped like:</p>
 <pre>{

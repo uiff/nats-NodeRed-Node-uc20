@@ -31,15 +31,15 @@ Fields:
 - **Host / Port** – IP address of your controller (e.g. `192.168.10.100`) and the NATS port `49360`.
 - **Client Name** – used for the NATS inbox prefix (`_INBOX.<name>`).
 - **Client ID / Secret** – OAuth2 client credentials created in the Control Center.
-- **Token URL** – optional override, defaults to `https://<host>/oauth2/token`.
 - **Scope** – usually `hub.variables.provide hub.variables.readwrite`.
+- **Granted scopes** – click *Refresh* to query the token endpoint and show the scopes currently granted to that client.
 
-The config node automatically fetches tokens via Client Credentials flow and exposes helper endpoints so other nodes can list providers and variables.
+The config node automatically fetches tokens via Client Credentials flow and exposes helper endpoints so other nodes can list providers and variables. The token endpoint is derived from the configured host (`https://<host>/oauth2/token`), so there is no additional field to maintain.
 
 ## DataHub Input Node
 
-- Select the u-OS config node and enter the provider ID (e.g. `u_os_adm`).
-- Optionally provide a comma-separated list of variable keys (leave empty to receive all).
+- Select the u-OS config node, then choose one of the discovered providers from the dropdown (the node queries `/datahub/v1/providers` for you).
+- Pick the variables you need from the multi-select list. Leave it empty to receive all variables from the provider.
 - The node outputs messages with the structure:
   ```json
   {

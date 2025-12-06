@@ -14,7 +14,6 @@ module.exports = function (RED) {
     this.port = Number(config.port) || 49360;
     this.clientName = config.clientName || 'nodered';
     this.scope = config.scope || 'hub.variables.provide hub.variables.readwrite';
-    this.tokenEndpoint = config.tokenEndpoint || `https://${this.host}/oauth2/token`;
     this.clientId = this.credentials.clientId;
     this.clientSecret = this.credentials.clientSecret;
     this.tokenInfo = null;
@@ -37,7 +36,8 @@ module.exports = function (RED) {
         scope: this.scope,
       });
       const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-      const res = await fetch(this.tokenEndpoint, {
+      const tokenEndpoint = `https://${this.host}/oauth2/token`;
+      const res = await fetch(tokenEndpoint, {
         method: 'POST',
         headers: {
           Authorization: `Basic ${basic}`,
@@ -57,6 +57,7 @@ module.exports = function (RED) {
       this.tokenInfo = {
         token: json.access_token,
         expiresAt: now + ((json.expires_in || 3600) * 1000),
+        grantedScope: json.scope || this.scope,
       };
       return this.tokenInfo.token;
     };
@@ -78,6 +79,11 @@ module.exports = function (RED) {
         this.nc = null;
       });
       return this.nc;
+    };
+
+    this.getGrantedScopes = async () => {
+      await this.getToken();
+      return this.tokenInfo?.grantedScope || '';
     };
 
     this.fetchProviders = async () => {
@@ -157,6 +163,20 @@ module.exports = function (RED) {
       try {
         const vars = await node.fetchProviderVariables(req.params.providerId);
         res.json(vars);
+      }
+      catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+    RED.httpAdmin.get('/uos/oauth-scopes/:id', async (req, res) => {
+      const node = RED.nodes.getNode(req.params.id);
+      if (!node) {
+        res.status(404).json({ error: 'config not found' });
+        return;
+      }
+      try {
+        const scope = await node.getGrantedScopes();
+        res.json({ scope });
       }
       catch (err) {
         res.status(500).json({ error: err.message });

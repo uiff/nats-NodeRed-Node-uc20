@@ -2,10 +2,9 @@
   RED.nodes.registerType('uos-config', {
     category: 'config',
     defaults: {
-      host: { value: '192.168.10.100', required: true },
+      host: { value: '127.0.0.1', required: true },
       port: { value: 49360, required: true, validate: RED.validators.number() },
       clientName: { value: 'nodered', required: true },
-      tokenEndpoint: { value: '', required: false },
       scope: { value: 'hub.variables.provide hub.variables.readwrite', required: true },
     },
     credentials: {
@@ -14,6 +13,50 @@
     },
     label: function () {
       return this.clientName ? `u-OS ${this.clientName}` : 'u-OS NATS';
+    },
+    oneditprepare: function() {
+      const node = this;
+      const $scopeDisplay = $('#uos-scope-display');
+      const $scopeSpinner = $('#uos-scope-spinner');
+      const $refresh = $('#uos-scope-refresh');
+      const updateDisplay = (text, cls = '') => {
+        $scopeDisplay.text(text);
+        $scopeDisplay.removeClass('form-tips-warning form-tips-error');
+        if (cls) {
+          $scopeDisplay.addClass(cls);
+        }
+      };
+      const fetchScopes = () => {
+        const configId = node.id;
+        if (!configId || !node.credentials || !node.credentials.clientId) {
+          updateDisplay('Save credentials and deploy to fetch granted scopes.');
+          return;
+        }
+        $scopeSpinner.show();
+        $.getJSON(`uos/oauth-scopes/${configId}`)
+          .done((data) => {
+            if (data && data.scope) {
+              updateDisplay(data.scope);
+            }
+            else {
+              updateDisplay('The client did not return a scope string.');
+            }
+          })
+          .fail((xhr) => {
+            const msg = xhr?.responseJSON?.error || xhr.statusText || 'Could not read scopes';
+            updateDisplay(msg);
+          })
+          .always(() => {
+            $scopeSpinner.hide();
+          });
+      };
+      $refresh.on('click', function (evt) {
+        evt.preventDefault();
+        fetchScopes();
+      });
+      if (node.credentials && node.credentials.clientId) {
+        fetchScopes();
+      }
     },
   });
 </script>
@@ -40,12 +83,16 @@
     <input type="password" id="node-config-input-clientSecret">
   </div>
   <div class="form-row">
-    <label for="node-config-input-tokenEndpoint"><i class="fa fa-lock"></i> Token URL</label>
-    <input type="text" id="node-config-input-tokenEndpoint" placeholder="https://HOST/oauth2/token">
-  </div>
-  <div class="form-row">
     <label for="node-config-input-scope"><i class="fa fa-list"></i> Scope</label>
     <input type="text" id="node-config-input-scope">
+  </div>
+  <div class="form-row">
+    <label><i class="fa fa-info-circle"></i> Granted scopes</label>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <button class="red-ui-button" id="uos-scope-refresh" type="button">Refresh</button>
+      <span id="uos-scope-display" class="form-tips">Save first to query granted scopes.</span>
+      <span id="uos-scope-spinner" class="fa fa-spinner fa-spin" style="display:none;"></span>
+    </div>
   </div>
 </script>
 
