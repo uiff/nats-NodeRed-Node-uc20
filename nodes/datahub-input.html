@@ -230,6 +230,22 @@
         <b>Poll Mode:</b> Reads at the specified interval (e.g. every 1000ms).
     </p>
 
+    <h3>⚠️ Important: Don't Read Your Own Output Provider</h3>
+    <p>
+        <b>Do NOT</b> use the provider created by your <b>DataHub - OUT</b> node (e.g. <code>nodered</code>) as input.
+    </p>
+    <p><b>Why?</b></p>
+    <ul>
+        <li>The Output provider only exists <b>while Node-RED is running</b></li>
+        <li>On restart, the provider disappears → Input node fails</li>
+        <li>This creates a circular dependency</li>
+    </ul>
+    <p><b>What to use instead:</b></p>
+    <ul>
+        <li>Read from <b>system providers</b> (e.g. <code>u_os_sbm</code>, <code>hub</code>)</li>
+        <li>Read from <b>other apps/devices</b> (not your own Node-RED)</li>
+    </ul>
+
     <h3>Troubleshooting</h3>
     
     <h4>No Output</h4>
