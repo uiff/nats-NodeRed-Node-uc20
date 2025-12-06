@@ -306,10 +306,7 @@
     <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
     <input type="text" id="node-input-name">
   </div>
-  <div class="form-row">
-    <label for="node-input-pollingInterval"><i class="fa fa-clock-o"></i> Polling (ms)</label>
-    <input type="number" id="node-input-pollingInterval" placeholder="0 = Events only, >0 = Hybrid">
-  </div>
+  <!-- Polling (ms) removed in favor of Input Port triggering -->
   <div class="form-row">
     <label for="node-input-connection"><i class="fa fa-cube"></i> u-OS Config</label>
     <input type="text" id="node-input-connection">
@@ -328,9 +325,9 @@
     <label></label>
     <div id="datahub-provider-status" class="form-tips" style="display:none;"></div>
   </div>
-  <div class="form-row">
-    <div style="display:flex; align-items:center; flex:1; margin-bottom:5px;">
-        <span style="flex:1"></span>
+  <div class="form-row" style="margin-bottom:0;">
+    <label for="datahub-input-variables" style="width: auto;"><i class="fa fa-list"></i> Variables</label>
+    <div style="display:inline-block; float:right;">
         <div class="btn-group" style="margin-right: 5px;">
             <button type="button" id="datahub-vars-all" class="red-ui-button red-ui-button-small" title="Select All"><i class="fa fa-check-square-o"></i></button>
             <button type="button" id="datahub-vars-none" class="red-ui-button red-ui-button-small" title="Deselect All"><i class="fa fa-square-o"></i></button>
@@ -339,8 +336,7 @@
     </div>
   </div>
   <div class="form-row">
-    <label></label>
-    <div style="border:1px solid #ccc; border-radius:4px; height:150px; overflow-y:scroll; padding:5px; margin-left:105px;" id="datahub-variables-container">
+    <div style="border:1px solid #ccc; border-radius:4px; height:200px; overflow-y:scroll; padding:5px; width:100%; box-sizing:border-box;" id="datahub-variables-container">
        <!-- Checkboxes will be inserted here -->
        <div style="color:#aaa; font-style:italic; padding:5px;">Select a provider to load variables...</div>
     </div>
@@ -359,17 +355,10 @@
     <dt>u-OS Config</dt>
     <dd>Pick the connection node that holds host, port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
-    <dd>Provider to read. The drop-down lists every provider returned by the  <p><strong>Attributes:</strong></p>
+    <dd>Provider to read. The drop-down lists every provider returned by the      <p><strong>Attributes:</strong></p>
   <dl>
-    <dt>Polling (ms)</dt>
-    <dd>
-      <ul>
-        <li><code>0</code> (default): <strong>Event-based only</strong>. You receive updates whenever they happen.</li>
-        <li><code>> 0</code>: <strong>Hybrid Mode</strong>. You receive live Events <strong>AND</strong> the node explicitly reads all values every X milliseconds. Useful if you suspect missed events.</li>
-      </ul>
-    </dd>
     <dt>Provider & Variables</dt>
-    <dd>Click the <strong>Refresh</strong> button to load the lists. Providers can be cached, but <strong>Variables require a deployed Config Node</strong> to be loaded securely.</dd>
+    <dd>Click the <strong>Refresh</strong> button to load the lists. Use the Input Port (e.g. inject node) to trigger manual snapshots.</dd>
   </dl>
   <p><strong>Troubleshooting:</strong></p>
   <ul>
