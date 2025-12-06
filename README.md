@@ -41,10 +41,11 @@ The config node automatically fetches tokens via Client Credentials flow.
 - Select the u-OS config node.
 - **Providers**: Click the **Refresh** button to list available providers. This list can be cached from the "Test Connection" button in the Config Node.
 - **Variables**: Select a provider, then click *Refresh* to load its variables. **Note:** To load variables, the Config Node **must be deployed** first!
-- **Polling (ms)**:
-  - `0`: **Events only**. Efficient and fast.
-  - `> 0`: **Hybrid Mode**. Receives events **AND** polls values every X ms.
-- **Troubleshooting**: If lists remain empty, check the Node-RED debug tab. Ensure your OAuth client has `hub.variables.readonly` permission.
+- **Variables**: Select a provider, then click *Refresh* to load its variables. **Note:** To load variables, the Config Node **must be deployed** first!
+- **Input Port Triggers**: The Input Node now accepts messages on its input port. Sending any message (e.g. from an **Inject** or **Timestamp** node) triggers an immediate snapshot of all values. This replaces the internal "Polling Interval" setting, giving you full control via standard Node-RED flows.
+- **Troubleshooting**: 
+    - If lists remain empty, check the Node-RED debug tab. Ensure your OAuth client has `hub.variables.readonly` permission.
+    - If you see API Error 500: The node will automatically fall back to NATS to fetch definitions. This ensures data access even if the REST API fails (e.g. due to reserved names).
 
 ## DataHub Output Node
 
