@@ -29,12 +29,18 @@ module.exports = function (RED) {
     this.providerId = config.providerId || 'sampleprovider';
     this.pollingInterval = parseInt(config.pollingInterval, 10) || 0; // ms, 0 = disabled (default)
     const text = config.variablesText || '';
+    const manualText = config.manualVariables || '';
 
-    // Parse variables, supporting "Name:ID" format for manual mapping
-    this.manualDefs = [];
+    // Parse variables: Standard list of names to filter
     this.variables = text
       .split(',')
-      .map((entry) => {
+      .map((entry) => (entry ? String(entry).trim() : ''))
+      .filter((entry) => entry.length > 0);
+
+    // Parse Manual Definitions "Name:ID"
+    this.manualDefs = [];
+    if (manualText) {
+      manualText.split(',').forEach(entry => {
         let trimmed = entry ? String(entry).trim() : '';
         if (trimmed.includes(':')) {
           const parts = trimmed.split(':');
@@ -42,12 +48,10 @@ module.exports = function (RED) {
           const id = parseInt(parts[1].trim(), 10);
           if (name && !isNaN(id)) {
             this.manualDefs.push({ id, key: name });
-            return name;
           }
         }
-        return trimmed;
-      })
-      .filter((entry) => entry.length > 0);
+      });
+    }
 
     let nc;
     let sub;

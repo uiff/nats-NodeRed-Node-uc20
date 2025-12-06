@@ -7,6 +7,7 @@
       connection: { type: 'uos-config', required: true },
       providerId: { value: '', required: false },
       variablesText: { value: '', required: false },
+      manualVariables: { value: '', required: false },
       pollingInterval: { value: 0, required: false, validate: RED.validators.number() },
     },
     inputs: 1,
@@ -346,6 +347,11 @@
     <label></label>
     <div id="datahub-variables-status" class="form-tips">Leave empty to listen to every variable.</div>
   </div>
+  <div class="form-row">
+      <label for="node-input-manualVariables" style="width: auto;"><i class="fa fa-wrench"></i> Manual Definitions</label>
+      <input type="text" id="node-input-manualVariables" placeholder="e.g. pressure:5, temp:6">
+  </div>
+  <div class="form-tips">Use <code>Name:ID</code> format to provide definitions if API Discovery fails (fixes "Empty List" issues).</div>
 </script>
 
 <script type="text/html" data-help-name="datahub-input">
