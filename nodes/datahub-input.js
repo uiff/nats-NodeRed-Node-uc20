@@ -27,30 +27,53 @@ module.exports = function (RED) {
     }
 
     this.providerId = config.providerId || 'sampleprovider';
-    this.pollingInterval = parseInt(config.pollingInterval, 10) || 0; // ms, 0 = disabled (default)
+    this.providerId = config.providerId || 'sampleprovider';
+    this.pollingInterval = parseInt(config.pollingInterval, 10) || 0; // ms
+    this.mode = config.mode || 'auto';
+
     const text = config.variablesText || '';
     const manualText = config.manualVariables || '';
+    const singleName = config.singleName || '';
+    const singleId = config.singleId || '';
 
-    // Parse variables: Standard list of names to filter
-    this.variables = text
-      .split(',')
-      .map((entry) => (entry ? String(entry).trim() : ''))
-      .filter((entry) => entry.length > 0);
-
-    // Parse Manual Definitions "Name:ID"
+    // Initialize containers
+    this.variables = [];
     this.manualDefs = [];
-    if (manualText) {
-      manualText.split(',').forEach(entry => {
-        let trimmed = entry ? String(entry).trim() : '';
-        if (trimmed.includes(':')) {
-          const parts = trimmed.split(':');
-          const name = parts[0].trim();
-          const id = parseInt(parts[1].trim(), 10);
-          if (name && !isNaN(id)) {
-            this.manualDefs.push({ id, key: name });
-          }
+
+    // --- Mode-Based Initialization ---
+    if (this.mode === 'manual_single') {
+      // Mode: Manual Single
+      // Strictly use Single Name/ID. Ignore others.
+      if (singleName && singleId !== '') {
+        const id = parseInt(singleId, 10);
+        if (!isNaN(id)) {
+          this.manualDefs.push({ id, key: String(singleName).trim() });
         }
-      });
+      }
+    }
+    else if (this.mode === 'manual_multi') {
+      // Mode: Manual Multi (Table)
+      if (manualText) {
+        manualText.split(',').forEach(entry => {
+          let trimmed = entry ? String(entry).trim() : '';
+          if (trimmed.includes(':')) {
+            const parts = trimmed.split(':');
+            const name = parts[0].trim();
+            const id = parseInt(parts[1].trim(), 10);
+            if (name && !isNaN(id)) {
+              this.manualDefs.push({ id, key: name });
+            }
+          }
+        });
+      }
+    }
+    else {
+      // Mode: Auto (Default)
+      // Use the standard checkbox list
+      this.variables = text
+        .split(',')
+        .map((entry) => (entry ? String(entry).trim() : ''))
+        .filter((entry) => entry.length > 0);
     }
 
     let nc;
