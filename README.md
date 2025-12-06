@@ -1,92 +1,258 @@
 # node-red-contrib-uos-nats
 
-**Note:** This custom Node-RED package is built and maintained by [IoTUeli](https://www.linkedin.com/in/iotueli/) and is **not** an official Weidmüller product. For questions, feature requests, or support please contact IoTUeli directly. Repository: <https://github.com/uiff/nats-NodeRed-Node-uc20>
+**Unofficial Node-RED Package for u-OS Data Hub**
 
-Node-RED nodes to read and write u-OS Data Hub variables via NATS. This package exposes three building blocks:
+Built and maintained by [IoTUeli](https://www.linkedin.com/in/iotueli/). This is **not** an official Weidmüller product.  
+Repository: <https://github.com/uiff/nats-NodeRed-Node-uc20>
 
-1. **u-OS Config** – stores host, OAuth client credentials and manages the shared NATS connection. Includes a **Test Connection** button for immediate feedback.
-2. **DataHub Input** – subscribes to an existing provider and emits JSON messages. Supports both **Event-based** and **Polling** updates.
-3. **DataHub Output** – automatically registers a provider (defaults to your Client Name/ID), flattens incoming JSON structures and publishes them to the Data Hub.
+---
 
-The nodes reuse the FlatBuffer helpers from the standalone Node sample, so they speak the native NATS API.
+## What is this?
+
+Node-RED nodes to **read** and **write** variables from the **u-OS Data Hub** via NATS protocol.
+
+### The Three Nodes:
+
+1. **u-OS Config** – Connection settings (Host, OAuth credentials, NATS connection)
+2. **DataHub - IN** – Read variables from Data Hub providers
+3. **DataHub - OUT** – Write variables to the Data Hub (creates your own provider)
+
+---
 
 ## Installation
 
-### From npm (recommended)
+### From npm (Recommended)
 ```bash
 cd ~/.node-red
 npm install node-red-contrib-uos-nats
 ```
-### From local folder (if you want to test before publishing)
+
+### From Local Folder (Development)
 ```bash
-npm install /path/to/local/NATS-NodeRED
+npm install /path/to/NATS-NodeRED
 ```
 
-Restart Node-RED. You will find the nodes under the *DataHub-NATS* category.
+Restart Node-RED. The nodes appear in the **"u-OS DataHub NATS"** category in the palette.
 
-## u-OS Config Node
+---
 
-Fields:
+## 1. u-OS Config Node
 
-- **Host / Port** – IP address of your controller (e.g. `192.168.10.100`) and the NATS port `49360`.
-- **Client Name** – used for the NATS inbox prefix (`_INBOX.<name>`).
-- **Client ID / Secret** – OAuth2 client credentials created in the Control Center.
-- **Scope** – defaults to `hub.variables.provide hub.variables.readwrite hub.variables.readonly`. Note: The API does not require a specific "read providers" scope; listing providers is covered by the standard variable scopes.
-- **Granted scopes** – click *Refresh* to query the token endpoint and show the scopes currently granted to that client.
+### Purpose
+Stores connection details and OAuth credentials. All DataHub nodes share this configuration.
 
-The config node automatically fetches tokens via Client Credentials flow.
+### Setup Steps
 
-## DataHub Input Node
+1. **Add a Config Node:**
+   - Open any DataHub node (IN or OUT)
+   - Click the pencil icon next to "Config"
+   - Click "Add new uos-config..."
 
-- Select the u-OS config node.
-- **Providers**: Click the **Refresh** button to list available providers. This list can be cached from the "Test Connection" button in the Config Node.
-- **Variables**: Select a provider, then click *Refresh* to load its variables. **Note:** To load variables, the Config Node **must be deployed** first!
-- **Variables**: Select a provider, then click *Refresh* to load its variables.
-    - **Note:** To load variables, the Config Node **must be deployed** first!
-    - **Manual Variable Mapping**: If Discovery fails (e.g. permission errors), use the **Manual Definition Map** table in the node config.
-      1.  Find the **ID (Integer)** of your variable in your **Python Config** or the **Data Hub Web UI** (e.g. `digital_nameplate.manufacturer_name` might be ID `0` or `5` depending on the system).
-      2.  Click **Add Mapping**.
-      3.  Enter the **Name** and **ID**.
-      This bypasses the API/NATS lookup and directly requests the specific ID.
-- **Input Port Triggers**: The Input Node now accepts messages on its input port. Sending any message (e.g. from an **Inject** or **Timestamp** node) triggers an immediate snapshot of all values. This replaces the internal "Polling Interval" setting, giving you full control via standard Node-RED flows.
-- **Troubleshooting**: 
-    - If lists remain empty, check the Node-RED debug tab. Ensure your OAuth client has `hub.variables.readonly` permission.
-    - If you see API Error 500: The node will automatically fall back to NATS to fetch definitions. This ensures data access even if the REST API fails (e.g. due to reserved names).
+2. **Fill in the Fields:**
 
-## DataHub Output Node
+| Field | Example | Description |
+|-------|---------|-------------|
+| **Host** | `192.168.10.100` | IP address of your u-Control device |
+| **Port** | `49360` | NATS port (default: 49360) |
+| **Client Name** | `nodered` | Unique name for this Node-RED instance |
+| **Client ID** | `my-oauth-client` | OAuth2 Client ID (from Control Center) |
+| **Client Secret** | `****************` | OAuth2 Client Secret (from Control Center) |
+| **Scopes** | `hub.variables.*` | Leave default or customize (see below) |
 
-- Reuses the u-OS config node.
-- **Provider ID**: Leave this field **EMPTY** (recommended) to automatically use the **Client Name** defined in your u-OS Config. This ensures your permissions always match.
-- Send a JSON object to the input pin. **Nested objects are supported** and create subcategories automatically:
-  ```json
-  {
-    "machine": {
-      "temperature": 45.2,
-      "status": {
-        "active": true,
-        "mode": "remote"
-      }
-    }
+3. **Create OAuth Client in Control Center:**
+   - Open the u-Control Web Interface
+   - Go to **System** → **Access Control** → **OAuth Clients**
+   - Click **"Add Client"**
+   - **Name:** `nodered`
+   - **Scopes:** Select all `hub.variables.*` (provide, readonly, readwrite)
+   - **Copy the Client ID and Secret** into Node-RED
+
+4. **Test Connection:**
+   - Click **"Test Connection"** button
+   - ✅ Success: Shows "Connected" + granted scopes
+   - ❌ Error: Check Host/Port/Credentials
+
+---
+
+## 2. DataHub - IN Node (Read Variables)
+
+### Purpose
+Subscribe to variables from a Data Hub provider and output their values as JSON messages.
+
+### Setup Steps
+
+#### Step 1: Select Config
+- Choose your **u-OS Config** node
+
+#### Step 2: Enter Provider ID
+- **What is it?** The name of the data source (e.g., `u_os_sbm`, `hub`, `custom-provider`)
+- **Where to find it?**
+  - u-Control Web Interface → **Data Hub** → **Providers**
+  - Or use the Python sample's `PROVIDER_ID`
+
+**Example:** `u_os_sbm`
+
+#### Step 3: Add Variables (Manual Table)
+Since auto-discovery often fails due to permissions, you **manually map** variable names to their IDs.
+
+**How to find Variable IDs:**
+
+**Option A: From Python Config**
+```python
+# Your working Python config.py
+VARIABLE_DEFINITIONS = [
+    {"id": 0, "key": "manufacturer_name", ...},
+    {"id": 2, "key": "machine.details.temp", ...}
+]
+```
+→ Use these IDs!
+
+**Option B: From u-Control Web UI**
+1. Open **Data Hub** → **Providers** → Select your provider
+2. Click on **Variables**
+3. Note the **ID** column (usually 0, 1, 2, ...)
+
+**Option C: From REST API**
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://192.168.10.100/datahub/v1/providers/u_os_sbm/variables
+```
+
+**Fill the Table:**
+
+| Variable Name | ID |
+|--------------|-----|
+| `manufacturer_name` | `0` |
+| `machine.details.temp` | `2` |
+
+Click **"Add Variable"** for each entry.
+
+#### Step 4: Choose Trigger Mode
+
+| Mode | When to Use |
+|------|-------------|
+| **Event (on change)** | Default. Efficient. Outputs only when values change. |
+| **Poll (interval)** | Forces periodic reads (e.g., every 1000ms). Less efficient. |
+
+#### Step 5: Deploy & Test
+1. Click **Deploy**
+2. Connect a **Debug** node to the output
+3. Send a message to the **Input Port** (using an **Inject** node) to trigger a read
+4. Check the Debug panel for output:
+   ```json
+   {
+     "type": "snapshot",
+     "variables": [
+       {"providerId": "u_os_sbm", "id": 0, "key": "manufacturer_name", "value": "Weidmüller", ...}
+     ]
+   }
+   ```
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| No output | Check: (1) Config deployed? (2) Provider ID correct? (3) Variable IDs correct? (4) Inject signal sent? |
+| "Variable not found" | Double-check IDs in the table. Use Python config or Web UI to verify. |
+| Permission errors | This is expected! That's why we use the manual table. |
+
+---
+
+## 3. DataHub - OUT Node (Write Variables)
+
+### Purpose
+Publish variables to the Data Hub (creates your own provider that other apps can read).
+
+### Setup Steps
+
+#### Step 1: Select Config
+- Choose your **u-OS Config** node
+
+#### Step 2: Provider ID (Optional)
+- **Leave EMPTY** to use the `Client Name` from your Config (recommended)
+- Or enter a custom provider ID (e.g., `my-machine-data`)
+
+#### Step 3: Send JSON Messages
+Send a JSON object with your data:
+
+```json
+{
+  "temperature": 25.5,
+  "machine": {
+    "status": "running",
+    "speed": 1500
   }
-  ```
-  This creates/updates the following variables:
-  - `machine.temperature` (FLOAT64)
-  - `machine.status.active` (BOOLEAN)
-  - `machine.status.mode` (STRING)
+}
+```
 
-- The node infers data types (INT64/FLOAT64/BOOLEAN/STRING) and automatically publishes definition updates when new keys are seen.
-- Read requests (`v1.loc.<provider>.vars.qry.read`) are answered using the most recent values, so other consumers can subscribe to your Node-RED provider.
+This creates variables:
+- `temperature` → ID 0
+- `machine.status` → ID 1
+- `machine.speed` → ID 2
+
+#### Step 4: Deploy & Test
+1. Connect a **Function** or **Inject** node
+2. Click **Deploy**
+3. Check the u-Control Web Interface → **Data Hub** → Your Provider
+
+---
 
 ## Example Flow
 
-1. Drop a **u-OS Config** node, fill in host/port and OAuth credentials from the Control Center.
-2. Add a **DataHub Input** node, select the config, choose the provider from the dropdown (or type the provider ID if the API access is restricted) and pick the variables you care about. Connect the output to a Debug node.
-3. Add a **DataHub Output** node, leave provider ID = `nodered` and send structured JSON (e.g. from a Function node). The values instantly appear in the Data Hub under the provider `nodered`.
+```
+[Inject] → [DataHub - IN] → [Debug]
+           (u_os_sbm)
 
-> Tip: Because both nodes rely on the Control Center HTTP API for metadata they inherit the same permissions as your OAuth client. Make sure the client has at least `hub.variables.readonly` for the input node and `hub.variables.provide hub.variables.readwrite` for the output node.
+[Inject: {"temp": 22}] → [DataHub - OUT]
+                         (nodered)
+```
 
-## TODO
+**Copy this flow:**
+```json
+[{"id":"inject1","type":"inject","name":"Trigger Read"},
+ {"id":"datahub-in","type":"datahub-input","connection":"config1","providerId":"u_os_sbm","manualVariables":"manufacturer_name:0"},
+ {"id":"debug1","type":"debug"}]
+```
 
-- Export a sample Node-RED flow (`flows.json`).
-- Optional helper node for write commands targeting existing providers.
-- Automated tests.
+---
+
+## FAQ
+
+### Q: Why manual IDs? Can't it auto-discover?
+**A:** Auto-discovery requires `hub.variables.readonly` permission on the **provider definition** endpoint, which is often restricted. The manual table works **without** this permission because it queries specific IDs directly.
+
+### Q: Where do I get Client ID/Secret?
+**A:** u-Control Web Interface → **System** → **Access Control** → **OAuth Clients** → **Add Client**
+
+### Q: What are the required OAuth scopes?
+**A:** 
+- **Read (IN Node):** `hub.variables.readonly`
+- **Write (OUT Node):** `hub.variables.provide` + `hub.variables.readwrite`
+- **Recommended:** Select all `hub.variables.*` scopes when creating the client
+
+### Q: Can I use this outside the local network?
+**A:** Yes, if your u-Control device is reachable over the network and you configure the correct Host/Port.
+
+### Q: Event vs Poll - which is better?
+**A:** **Event** (default) is more efficient. Use **Poll** only if you need guaranteed periodic readings regardless of value changes.
+
+---
+
+## Changelog
+
+See [GitHub Releases](https://github.com/uiff/nats-NodeRed-Node-uc20/releases)
+
+---
+
+## Support
+
+**Issues, Questions, or Feature Requests:**  
+Contact [IoTUeli](https://www.linkedin.com/in/iotueli/) or open an issue on [GitHub](https://github.com/uiff/nats-NodeRed-Node-uc20)
+
+---
+
+## License
+
+MIT License
+
+**Disclaimer:** This package is a community contribution, not an official Weidmüller product.

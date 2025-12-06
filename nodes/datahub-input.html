@@ -131,43 +131,130 @@
 </script>
 
 <script type="text/html" data-help-name="datahub-input">
-    <p>Reads variables from the u-OS Data Hub via NATS.</p>
+    <p>Reads variables from the u-OS Data Hub via NATS and outputs their values as JSON messages.</p>
     
+    <h3>Quick Start</h3>
+    <ol>
+        <li>Select a <b>u-OS Config</b> node (create one if needed)</li>
+        <li>Enter the <b>Provider ID</b> (e.g. <code>u_os_sbm</code>, <code>hub</code>)</li>
+        <li>Add variables using the <b>Variables Table</b></li>
+        <li>Deploy and send a message to the input port to trigger a read</li>
+    </ol>
+
     <h3>Configuration</h3>
-    <dl class="message-properties">
-        <dt>Provider ID</dt>
-        <dd>The Data Hub Provider ID (e.g. <code>u_os_sbm</code>, <code>hub</code>)</dd>
-        
-        <dt>Variables</dt>
-        <dd>
-            Manual mapping of Variable Names to IDs. Each row specifies:
-            <ul>
-                <li><b>Variable Name:</b> The key/path (e.g. <code>manufacturer_name</code>)</li>
-                <li><b>ID:</b> The numeric ID from the Data Hub</li>
-            </ul>
-            Only variables listed here will be output.
-        </dd>
-        
-        <dt>Trigger</dt>
-        <dd>
-            <ul>
-                <li><b>Event:</b> Outputs only when value changes (default, efficient)</li>
-                <li><b>Poll:</b> Queries values at fixed interval (less efficient)</li>
-            </ul>
-        </dd>
-    </dl>
     
-    <h3>Finding Variable IDs</h3>
+    <h4>1. Config Node</h4>
     <p>
-        You can find Variable IDs using:
-        <ul>
-            <li>The u-Control Web Interface</li>
-            <li>REST API: <code>GET /datahub/v1/providers/{providerId}/variables</code></li>
-            <li>NATS query tools</li>
-        </ul>
+        Select your u-OS connection settings. If you don't have one yet:
+    </p>
+    <ul>
+        <li>Click the <b>pencil icon</b> → <b>Add new uos-config</b></li>
+        <li>Enter Host, Port, and OAuth credentials from u-Control</li>
+        <li>Test the connection before saving</li>
+    </ul>
+
+    <h4>2. Provider ID</h4>
+    <p>
+        The name of the data source you want to read from.
+    </p>
+    <p><b>How to find it:</b></p>
+    <ul>
+        <li><b>Web UI:</b> u-Control → Data Hub → Providers → Note the Provider ID</li>
+        <li><b>Python:</b> Check your <code>config.py</code> → <code>PROVIDER_ID</code></li>
+        <li><b>Common examples:</b> <code>u_os_sbm</code>, <code>hub</code>, <code>custom-provider</code></li>
+    </ul>
+
+    <h4>3. Variables Table</h4>
+    <p>
+        Manually map variable names to their IDs. Click <b>"Add Variable"</b> for each entry.
+    </p>
+    
+    <h5>Finding Variable IDs:</h5>
+    
+    <h6>Option A: From Python Config</h6>
+    <pre><code>VARIABLE_DEFINITIONS = [
+    {"id": 0, "key": "manufacturer_name", ...},
+    {"id": 2, "key": "machine.temp", ...}
+]</code></pre>
+    <p>→ Use these IDs!</p>
+
+    <h6>Option B: From u-Control Web UI</h6>
+    <ol>
+        <li>Go to <b>Data Hub</b> → <b>Providers</b> → Select your provider</li>
+        <li>Click <b>Variables</b></li>
+        <li>Note the <b>ID</b> column (usually 0, 1, 2, ...)</li>
+    </ol>
+
+    <h6>Option C: From REST API</h6>
+    <pre><code>curl -H "Authorization: Bearer $TOKEN" \
+  http://&lt;host&gt;/datahub/v1/providers/&lt;providerId&gt;/variables</code></pre>
+
+    <h5>Example Table:</h5>
+    <table>
+        <tr><th>Variable Name</th><th>ID</th></tr>
+        <tr><td><code>manufacturer_name</code></td><td>0</td></tr>
+        <tr><td><code>machine.details.temp</code></td><td>2</td></tr>
+    </table>
+
+    <h4>4. Trigger Mode</h4>
+    <dl>
+        <dt>Event (on change) – Default</dt>
+        <dd>Efficient. Outputs only when values change. Recommended for most use cases.</dd>
+        
+        <dt>Poll (interval)</dt>
+        <dd>Forces periodic reads (e.g. every 1000ms). Use if you need guaranteed updates regardless of changes.</dd>
+    </dl>
+
+    <h3>Output Format</h3>
+    <p>When triggered (via input port), the node outputs:</p>
+    <pre><code>{
+  "type": "snapshot",
+  "variables": [
+    {
+      "providerId": "u_os_sbm",
+      "id": 0,
+      "key": "manufacturer_name",
+      "value": "Weidmüller",
+      "quality": "GOOD",
+      "timestampNs": 1234567890000000000
+    }
+  ]
+}</code></pre>
+
+    <h3>Triggering Reads</h3>
+    <p>
+        Connect an <b>Inject</b> node to the input port. Sending any message triggers an immediate read.
+    </p>
+    <p>
+        <b>Event Mode:</b> Also outputs automatically when values change.<br>
+        <b>Poll Mode:</b> Reads at the specified interval (e.g. every 1000ms).
     </p>
 
-    <div style="margin-top:10px; font-size:0.8em; color:#666; border-top:1px solid #eee; padding-top:5px;">
-        Developed by <a href="https://github.com/iotueli" target="_blank">iotueli</a>. Not an official Weidmüller product.
+    <h3>Troubleshooting</h3>
+    
+    <h4>No Output</h4>
+    <ul>
+        <li>✓ Config node deployed?</li>
+        <li>✓ Provider ID correct?</li>
+        <li>✓ Variable IDs correct? (Check Python config or Web UI)</li>
+        <li>✓ Inject signal sent to input port?</li>
+    </ul>
+
+    <h4>"Variable not found"</h4>
+    <ul>
+        <li>Double-check the IDs in your table</li>
+        <li>Verify IDs match those in the Python config or Web UI</li>
+    </ul>
+
+    <h4>Why Manual IDs?</h4>
+    <p>
+        Auto-discovery requires <code>hub.variables.readonly</code> permission on the <b>provider definition endpoint</b>, 
+        which is often restricted for security. The manual table works <b>without</b> this permission 
+        by querying specific IDs directly.
+    </p>
+
+    <div style="margin-top:15px; padding-top:10px; border-top:1px solid #ddd; font-size:0.85em; color:#666;">
+        <p><b>Developed by <a href="https://www.linkedin.com/in/iotueli/" target="_blank">IoTUeli</a></b></p>
+        <p>Not an official Weidmüller product. Community contribution.</p>
     </div>
 </script>

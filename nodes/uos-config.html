@@ -150,12 +150,101 @@
 </script>
 
 <script type="text/html" data-help-name="uos-config">
-  <p><strong>u-OS Config</strong> stores the shared connection settings for all DataHub nodes.</p>
+  <p><strong>u-OS Config</strong> stores the connection settings used by all DataHub nodes (IN and OUT).</p>
+  
+  <h3>Setup Steps</h3>
+  
+  <h4>1. Create OAuth Client in u-Control</h4>
+  <p>Before configuring Node-RED, create an OAuth client on your u-Control device:</p>
+  <ol>
+    <li>Open the <b>u-Control Web Interface</b> (e.g. <code>http://192.168.10.100</code>)</li>
+    <li>Go to <b>System</b> → <b>Access Control</b> → <b>OAuth Clients</b></li>
+    <li>Click <b>"Add Client"</b></li>
+    <li>Enter a <b>Name</b> (e.g. <code>nodered</code>)</li>
+    <li>Select <b>all</b> <code>hub.variables.*</code> scopes:
+      <ul>
+        <li><code>hub.variables.provide</code> – Allows creating providers (for OUT node)</li>
+        <li><code>hub.variables.readonly</code> – Allows reading variables (for IN node)</li>
+        <li><code>hub.variables.readwrite</code> – Allows writing variables (for advanced use)</li>
+      </ul>
+    </li>
+    <li><b>Save</b> and copy the <b>Client ID</b> and <b>Client Secret</b></li>
+  </ol>
+
+  <h4>2. Configure this Node</h4>
+  <dl>
+    <dt>Host</dt>
+    <dd>
+      IP address of your u-Control device.
+      <br><b>Example:</b> <code>192.168.10.100</code>
+    </dd>
+
+    <dt>Port</dt>
+    <dd>
+      NATS port (usually <code>49360</code>).
+      <br><b>Default:</b> <code>49360</code>
+    </dd>
+
+    <dt>Client Name</dt>
+    <dd>
+      A friendly identifier for this Node-RED instance. Used for connection logs.
+      <br><b>Example:</b> <code>nodered</code>
+    </dd>
+
+    <dt>Client ID</dt>
+    <dd>
+      The OAuth Client ID from step 1.
+      <br><b>Example:</b> <code>my-oauth-client-id</code>
+    </dd>
+
+    <dt>Client Secret</dt>
+    <dd>
+      The OAuth Client Secret from step 1. Stored encrypted.
+    </dd>
+
+    <dt>Scope (Fixed)</dt>
+    <dd>
+      Automatically set to: <code>hub.variables.provide hub.variables.readwrite hub.variables.readonly</code>
+      <br>This ensures all DataHub features work correctly.
+    </dd>
+
+    <dt>Granted Scopes</dt>
+    <dd>
+      Click <b>"Refresh"</b> after saving to see which scopes the u-Control device actually granted to your client.
+      <br>If this differs from the fixed scope, check your OAuth client settings in u-Control.
+    </dd>
+  </dl>
+
+  <h4>3. Test Connection</h4>
+  <p>
+    Click <b>"Test Connection & List Providers"</b> to verify:
+  </p>
   <ul>
-    <li><strong>Host / Port</strong> – IP and NATS port of the controller (default <code>127.0.0.1:49360</code>).</li>
-    <li><strong>Client Name</strong> – Friendly identifier used in NATS connection logs.</li>
-    <li><strong>Client ID / Secret</strong> – OAuth credentials from your u-OS Control Center client.</li>
-    <li><strong>Scope</strong> – Fixed to <code>hub.variables.provide hub.variables.readwrite hub.variables.readonly</code> so the nodes can register providers and read metadata. It cannot be edited in the UI.</li>
-    <li><strong>Granted scopes</strong> – Click <em>Refresh</em> to show what the token endpoint actually returns for this client.</li>
+    <li>✅ Credentials are correct</li>
+    <li>✅ Network connection works</li>
+    <li>✅ Provider list can be fetched</li>
   </ul>
+  <p>
+    On success, you'll see: <i>"Connection OK! Found X providers."</i>
+  </p>
+
+  <h3>Troubleshooting</h3>
+  
+  <h4>Test Connection fails</h4>
+  <ul>
+    <li>Check Host/Port are correct and device is reachable</li>
+    <li>Verify Client ID/Secret match exactly (no extra spaces)</li>
+    <li>Ensure the OAuth client exists in u-Control</li>
+  </ul>
+
+  <h4>Granted scopes are empty or different</h4>
+  <ul>
+    <li>Check the OAuth client in u-Control still has the required scopes</li>
+    <li>Try deleting and recreating the OAuth client</li>
+  </ul>
+
+  <div style="margin-top:15px; padding-top:10px; border-top:1px solid #ddd; font-size:0.85em; color:#666;">
+    <p><b>Developed by <a href="https://www.linkedin.com/in/iotueli/" target="_blank">IoTUeli</a></b></p>
+    <p>Not an official Weidmüller product. Community contribution.</p>
+  </div>
 </script>
