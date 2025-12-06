@@ -51,16 +51,29 @@ module.exports = function (RED) {
       // Helper to find definition by ID (fuzzy match string/number)
       const getDef = (id) => defMap.get(id) || defMap.get(String(id)) || defMap.get(Number(id));
 
-      return states
-        .map((state) => ({
-          providerId: this.providerId,
-          id: state.id,
-          key: getDef(state.id)?.key || state.id,
-          value: state.value,
-          quality: state.quality,
-          timestampNs: state.timestampNs,
-        }))
-        .filter((state) => shouldInclude(state.key));
+      const mapped = states.map((state) => ({
+        providerId: this.providerId,
+        id: state.id,
+        key: getDef(state.id)?.key || state.id,
+        value: state.value,
+        quality: state.quality,
+        timestampNs: state.timestampNs,
+      }));
+
+      // Warn if we have filters but no definitions (all keys will be raw IDs)
+      if (this.variables.length > 0 && defMap.size === 0 && mapped.length > 0) {
+        this.warnOnce('Filtering active but Variable Definitions failed to load (API Error). Names cannot be resolved, so filters will likely block all data. Please fix the API error (check Provider ID/Permissions).');
+      }
+
+      return mapped.filter((state) => shouldInclude(state.key));
+    };
+
+    // Helper to warn only once per deployment to avoid log spam
+    this.warnOnce = (msg) => {
+      if (!this.warned) {
+        this.warn(msg);
+        this.warned = true;
+      }
     };
 
     let performSnapshot = async () => { }; // Placeholder
