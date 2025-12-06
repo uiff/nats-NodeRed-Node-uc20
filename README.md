@@ -9,13 +9,14 @@ Repository: <https://github.com/uiff/nats-NodeRed-Node-uc20>
 
 ## What is this?
 
-Node-RED nodes to **read** and **write** variables from the **Weidmüller u-OS Data Hub** via NATS protocol.
+Node-RED nodes to **read**, **write**, and **provide** variables for the **Weidmüller u-OS Data Hub** via NATS protocol.
 
-### The Three Nodes
+### The Four Nodes
 
 1. **u-OS Config** – Connection settings (Host, OAuth credentials, NATS connection)
-2. **DataHub - IN** – Read variables from Data Hub providers
-3. **DataHub - OUT** – Write variables to the Data Hub (creates your own provider)
+2. **DataHub - Read** – Read variables from Data Hub providers
+3. **DataHub - Provider** – Create your own provider (publish variables)
+4. **DataHub - Write** – Send write commands to other providers
 
 ---
 
@@ -186,7 +187,7 @@ If you have other Data Hub clients (apps, PLCs), check their variable definition
 
 ---
 
-## DataHub - IN Node (Read Variables)
+## DataHub - Read Node
 
 ### Purpose
 Subscribe to variables from a Data Hub provider and output their values as JSON messages.
@@ -232,7 +233,7 @@ Connect an **Inject** node to the input port to trigger manual reads.
 
 ---
 
-## DataHub - OUT Node (Write Variables)
+## DataHub - Provider Node
 
 ### Purpose
 Creates a real Data Hub provider that publishes variables. Other applications can subscribe to your data in real-time.
@@ -290,6 +291,83 @@ This creates:
 
 ---
 
+## DataHub - Write Node
+
+### Purpose
+Send **write commands** to **external Data Hub providers** to change variable values. This is different from the Provider node - you're controlling **other** systems, not creating your own provider.
+
+### Use Cases
+
+✅ **Control external devices** - Toggle flags, update setpoints  
+✅ **Machine control** - Start/stop operations via Data Hub  
+✅ **Configuration updates** - Change parameters in other apps  
+✅ **Integration scenarios** - Write to PLCs, other Node-RED instances, etc.  
+
+### Configuration
+
+1. **Config Node:** Select your u-OS connection
+2. **Provider ID:** Target provider to write to (e.g., `u_os_adm`, `u_os_sbm`)
+3. **Variable ID:** Numeric ID of the variable to write
+
+### Finding Variable IDs
+
+Same as Read node - check u-OS Web UI:
+
+1. Go to **Data Hub** → **Providers** → Select target provider
+2. Click **Variables** tab
+3. Note the **ID** column
+
+### Input Format
+
+Send the new value as `msg.payload`:
+
+**Toggle Boolean:**
+```javascript
+msg.payload = false;
+return msg;
+```
+
+**Update Number:**
+```javascript
+msg.payload = 42.5;
+return msg;
+```
+
+**Change String:**
+```javascript
+msg.payload = "stopped";
+return msg;
+```
+
+### Output
+
+Outputs confirmation when write command is sent:
+
+```json
+{
+  "success": true,
+  "providerId": "u_os_adm",
+  "variableId": 5,
+  "value": false
+}
+```
+
+### Example Flow
+
+```
+[Inject: false] → [DataHub - Write] → [Debug]
+                  (Provider: u_os_adm,
+                   Variable ID: 5)
+```
+
+### Important Notes
+
+⚠️ **Requires write permissions:** OAuth client must have `hub.variables.readwrite` scope  
+⚠️ **Provider must accept writes:** Some providers are read-only  
+⚠️ **Variable must exist:** The variable ID must be valid  
+
+---
+
 ## Troubleshooting
 
 ### No Output from IN Node
@@ -319,16 +397,22 @@ Auto-discovery requires special permissions on the provider definition endpoint,
 
 ## FAQ
 
-### Q: Can I use the provider created by OUT node in the IN node?
-**A:** **No, don't do this!** The OUT provider only exists while Node-RED runs. On restart, it disappears and the IN node fails. Read from **system providers** (`u_os_sbm`, `u_os_adm`) or other persistent apps instead.
+### Q: Can I use the provider created by Provider node in the Read node?
+**A:** **No, don't do this!** The Provider node's provider only exists while Node-RED runs. On restart, it disappears and the Read node fails. Read from **system providers** (`u_os_sbm`, `u_os_adm`) or other persistent apps instead.
+
+### Q: What's the difference between Provider and Write nodes?
+**A:**  
+- **DataHub - Provider:** Creates your **own** provider. Other apps read **from** you.
+- **DataHub - Write:** Sends commands **to other** providers. You write **to** them.
 
 ### Q: Where do I get Client ID/Secret?
 **A:** u-OS Web Interface → **System** → **Access Control** → **OAuth Clients** → **Add Client**
 
 ### Q: What are the required OAuth scopes?
 **A:** 
-- **Read (IN Node):** `hub.variables.readonly`
-- **Write (OUT Node):** `hub.variables.provide` + `hub.variables.readwrite`
+- **Read Node:** `hub.variables.readonly`
+- **Provider Node:** `hub.variables.provide` + `hub.variables.readwrite`
+- **Write Node:** `hub.variables.readwrite`
 - **Recommended:** Select all `hub.variables.*` scopes when creating the client
 
 ### Q: Can I use this outside the local network?

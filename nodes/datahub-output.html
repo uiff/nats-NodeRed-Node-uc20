@@ -14,7 +14,7 @@
     label: function () {
       return this.name || `DataHub - OUT ${this.providerId || ''}`;
     },
-    paletteLabel: "DataHub - OUT",
+    paletteLabel: "DataHub - Provider",
     labelStyle: function () {
       return this.name ? 'node_label_italic' : '';
     }
@@ -37,7 +37,7 @@
 </script>
 
 <script type="text/html" data-help-name="datahub-output">
-  <p><strong>DataHub Output</strong> registers (if needed) and writes variables for the provider you specify.</p>
+  <p><b>DataHub - Provider</b> creates your own Data Hub provider that other applications can read from in real-time.</p>
   <dl>
     <dt>u-OS Config</dt>
     <dd>Connection node with host/port and OAuth credentials.</dd>

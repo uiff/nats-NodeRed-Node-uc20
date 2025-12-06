@@ -17,7 +17,7 @@
       if (this.name) return this.name;
       return "DataHub - IN";
     },
-    paletteLabel: "DataHub - IN",
+    paletteLabel: "DataHub - Read",
     oneditprepare: function () {
       const node = this;
 
@@ -131,7 +131,7 @@
 </script>
 
 <script type="text/html" data-help-name="datahub-input">
-    <p>Reads variables from the u-OS Data Hub via NATS and outputs their values as JSON messages.</p>
+    <p><b>DataHub - Read</b> reads variables from u-OS Data Hub providers and outputs their values as JSON messages.</p>
     
     <h3>Quick Start</h3>
     <ol>

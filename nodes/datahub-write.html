@@ -1,0 +1,127 @@
+<script type="text/javascript">
+    RED.nodes.registerType('datahub-write', {
+        category: 'u-OS DataHub NATS',
+        color: '#e74c3c',
+        defaults: {
+            name: { value: "" },
+            connection: { type: "uos-config", required: true },
+            providerId: { value: "", required: true },
+            variableId: { value: "", required: false },
+            variableName: { value: "", required: false }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "white/datahub-output.svg",
+        label: function () {
+            if (this.name) return this.name;
+            return `Write → ${this.providerId || 'provider'}`;
+        },
+        paletteLabel: "DataHub - Write",
+        oneditprepare: function () {
+            // Nothing special needed for now
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="datahub-write">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Optional">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-connection"><i class="fa fa-globe"></i> Config</label>
+        <input type="text" id="node-input-connection">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-providerId"><i class="fa fa-server"></i> Provider ID</label>
+        <input type="text" id="node-input-providerId" placeholder="e.g. u_os_adm">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-variableId"><i class="fa fa-hashtag"></i> Variable ID</label>
+        <input type="number" id="node-input-variableId" placeholder="e.g. 5">
+    </div>
+
+    <div class="form-tips">
+        <i class="fa fa-info-circle"></i> Send <code>msg.payload</code> with the value to write (e.g., <code>true</code>, <code>42</code>, <code>"hello"</code>)
+    </div>
+</script>
+
+<script type="text/html" data-help-name="datahub-write">
+    <p><b>DataHub - Write</b> sends write commands to external Data Hub providers to change variable values.</p>
+    
+    <h3>Purpose</h3>
+    <p>Control variables in <b>other providers</b> (not your own). Use this to:</p>
+    <ul>
+        <li>Toggle flags (e.g., <code>enable_mode = true</code>)</li>
+        <li>Update setpoints (e.g., <code>target_temp = 25.5</code>)</li>
+        <li>Control external devices via Data Hub</li>
+    </ul>
+
+    <h3>Configuration</h3>
+    
+    <h4>Provider ID</h4>
+    <p>The target provider to write to (e.g., <code>u_os_adm</code>, <code>u_os_sbm</code>).</p>
+    <p><b>Find it:</b> u-OS Web UI → Data Hub → Providers</p>
+
+    <h4>Variable ID</h4>
+    <p>The numeric ID of the variable to write.</p>
+    <p><b>Find it:</b> u-OS Web UI → Data Hub → Providers → (Select Provider) → Variables tab</p>
+
+    <h3>Input Format</h3>
+    <p>Send the new value as <code>msg.payload</code>:</p>
+
+    <h4>Example: Toggle Boolean</h4>
+    <pre><code>msg.payload = false;
+return msg;</code></pre>
+
+    <h4>Example: Update Number</h4>
+    <pre><code>msg.payload = 42.5;
+return msg;</code></pre>
+
+    <h4>Example: Change String</h4>
+    <pre><code>msg.payload = "stopped";
+return msg;</code></pre>
+
+    <h3>Output</h3>
+    <p>Outputs a confirmation message when the write command is sent:</p>
+    <pre><code>{
+  "success": true,
+  "providerId": "u_os_adm",
+  "variableId": 5,
+  "value": false
+}</code></pre>
+
+    <h3>Example Flow</h3>
+    <pre><code>[Inject: false] → [DataHub - Write] → [Debug]
+                   (Provider: u_os_adm, Variable ID: 5)</code></pre>
+
+    <h3>Important Notes</h3>
+    <ul>
+        <li>⚠️ <b>Requires write permissions:</b> Your OAuth client must have <code>hub.variables.readwrite</code> scope</li>
+        <li>⚠️ <b>Provider must accept writes:</b> Some providers are read-only</li>
+        <li>⚠️ <b>Variable must exist:</b> The variable ID must be valid in the target provider</li>
+    </ul>
+
+    <h3>Troubleshooting</h3>
+    
+    <h4>No Response / Error</h4>
+    <ul>
+        <li>Check Provider ID is correct (u-OS Web UI → Data Hub → Providers)</li>
+        <li>Verify Variable ID exists (Providers → Variables tab)</li>
+        <li>Ensure OAuth client has <code>hub.variables.readwrite</code> scope</li>
+    </ul>
+
+    <h4>Permission Denied</h4>
+    <ul>
+        <li>Check OAuth client scopes in u-OS (System → Access Control → OAuth Clients)</li>
+        <li>Verify provider allows writes (some system providers are read-only)</li>
+    </ul>
+
+    <div style="margin-top:15px; padding-top:10px; border-top:1px solid #ddd; font-size:0.85em; color:#666;">
+        <p><b>Developed by <a href="https://iotueli.ch" target="_blank">IoTUeli</a></b></p>
+        <p>Not an official Weidmüller product. Community contribution.</p>
+    </div>
+</script>
