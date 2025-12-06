@@ -292,6 +292,52 @@
       syncVariablesField();
       // Delay provider loading slightly to ensure the config typedInput is ready.
       setTimeout(() => loadProviders(), 100);
+      // Manual Definitions Table
+      const $manualList = $('#node-input-manual-defs-container');
+      const $manualHidden = $('#node-input-manualVariables');
+
+      $manualList.editableList({
+        addItem: function (row, index, data) {
+          row.css({ display: 'flex', alignItems: 'center', gap: '5px' });
+
+          $('<input/>', { class: 'node-input-manual-name', type: 'text', placeholder: 'Name (e.g. manufacturer_name)', style: 'flex:1;' })
+            .val(data.name || '')
+            .appendTo(row);
+
+          $('<input/>', { class: 'node-input-manual-id', type: 'number', placeholder: 'ID', style: 'width:100px;' })
+            .val(data.id || '')
+            .appendTo(row);
+        },
+        removable: true,
+        header: $('<div></div>').append(
+          $.parseHTML('<div style="display:flex; gap:5px; padding-left:5px;"><div style="flex:1;">Variable Name (Key)</div><div style="width:100px;">ID (Int)</div></div>')
+        ),
+        addButton: 'Add Mapping'
+      });
+
+      // Populate Table from Hidden String "name:id, name2:id2"
+      const currentManual = $manualHidden.val() || '';
+      if (currentManual) {
+        currentManual.split(',').forEach(entry => {
+          const parts = entry.split(':');
+          if (parts.length === 2) {
+            $manualList.editableList('addItem', { name: parts[0].trim(), id: parts[1].trim() });
+          }
+        });
+      }
+
+    },
+    oneditsave: function () {
+      const $manualList = $('#node-input-manual-defs-container');
+      const items = [];
+      $manualList.editableList('items').each(function () {
+        const name = $(this).find('.node-input-manual-name').val().trim();
+        const id = $(this).find('.node-input-manual-id').val().trim();
+        if (name && id) {
+          items.push(`${name}:${id}`);
+        }
+      });
+      $('#node-input-manualVariables').val(items.join(','));
     },
     label: function () {
       return this.name || `Input ${this.providerId || ''}`;
@@ -347,11 +393,15 @@
     <label></label>
     <div id="datahub-variables-status" class="form-tips">Leave empty to listen to every variable.</div>
   </div>
-  <div class="form-row">
-      <label for="node-input-manualVariables" style="width: auto;"><i class="fa fa-wrench"></i> Manual Definitions</label>
-      <input type="text" id="node-input-manualVariables" placeholder="e.g. pressure:5, temp:6">
+  <div class="form-row" style="margin-bottom:0;">
+      <label style="width:auto;"><i class="fa fa-wrench"></i> Manual Definition Map</label>
+      <div style="float:right; font-size:12px; color:#888;">Map Variable Names to IDs manually (if Discovery fails)</div>
   </div>
-  <div class="form-tips">Use <code>Name:ID</code> format to provide definitions if API Discovery fails (fixes "Empty List" issues).</div>
+  <div class="form-row node-input-manual-container-row">
+      <ol id="node-input-manual-defs-container"></ol>
+  </div>
+  <input type="hidden" id="node-input-manualVariables">
+  <div class="form-tips"><strong>Tip:</strong> If auto-discovery fails (permissions), enter the Name and ID exactly as configured in the server. See your Python config for reference.</div>
 </script>
 
 <script type="text/html" data-help-name="datahub-input">
