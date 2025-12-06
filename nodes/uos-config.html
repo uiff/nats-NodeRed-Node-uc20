@@ -15,8 +15,9 @@
     label: function () {
       return this.clientName ? `u-OS ${this.clientName}` : 'u-OS NATS';
     },
-    oneditprepare: function() {
+    oneditprepare: function () {
       const node = this;
+      console.log('uos-config oneditprepare', node);
       const $scopeDisplay = $('#uos-scope-display');
       const $scopeSpinner = $('#uos-scope-spinner');
       const $refresh = $('#uos-scope-refresh');

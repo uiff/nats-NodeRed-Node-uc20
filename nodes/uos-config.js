@@ -15,8 +15,8 @@ module.exports = function (RED) {
     this.port = Number(config.port) || 49360;
     this.clientName = config.clientName || 'nodered';
     this.scope = DEFAULT_SCOPE;
-    this.clientId = this.credentials.clientId;
-    this.clientSecret = this.credentials.clientSecret;
+    this.clientId = this.credentials ? this.credentials.clientId : null;
+    this.clientSecret = this.credentials ? this.credentials.clientSecret : null;
     this.tokenInfo = null;
     this.nc = null;
     this.users = 0;
@@ -89,7 +89,8 @@ module.exports = function (RED) {
 
     this.fetchProviders = async () => {
       const token = await this.getToken();
-      const res = await fetch(`https://${this.host}/datahub/v1/providers`, {
+      // Use standard u-OS API path according to OpenAPI spec
+      const res = await fetch(`https://${this.host}/u-os-hub/api/v1/providers`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
@@ -105,7 +106,7 @@ module.exports = function (RED) {
 
     this.fetchProviderVariables = async (providerId) => {
       const token = await this.getToken();
-      const res = await fetch(`https://${this.host}/datahub/v1/providers/${providerId}/variables`, {
+      const res = await fetch(`https://${this.host}/u-os-hub/api/v1/providers/${providerId}/variables`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
