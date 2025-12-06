@@ -27,69 +27,28 @@ module.exports = function (RED) {
     }
 
     this.providerId = config.providerId || 'sampleprovider';
-    this.mode = config.mode || 'auto';
     this.triggerMode = config.triggerMode || 'event';
     this.pollingInterval = this.triggerMode === 'poll' ? (parseInt(config.pollingInterval, 10) || 1000) : 0;
 
-    const text = config.variablesText || '';
     const manualText = config.manualVariables || '';
-    const singleName = config.singleName || '';
-    const singleId = config.singleId || '';
 
     // Initialize containers
     this.variables = [];
     this.manualDefs = [];
 
-    // --- Mode-Based Initialization ---
-    if (this.mode === 'manual_single') {
-      // Mode: Manual Single
-      // Strictly use Single Name/ID. Ignore others.
-      if (singleName && singleId !== '') {
-        const id = parseInt(singleId, 10);
-        if (!isNaN(id)) {
-          this.manualDefs.push({ id, key: String(singleName).trim() });
+    // Parse Manual Variables (Name:ID)
+    if (manualText) {
+      manualText.split(',').forEach(entry => {
+        let trimmed = entry ? String(entry).trim() : '';
+        if (trimmed.includes(':')) {
+          const parts = trimmed.split(':');
+          const name = parts[0].trim();
+          const id = parseInt(parts[1].trim(), 10);
+          if (name && !isNaN(id)) {
+            this.manualDefs.push({ id, key: name });
+          }
         }
-      }
-    }
-    else if (this.mode === 'manual_multi') {
-      // Mode: Manual Multi (Table)
-      if (manualText) {
-        manualText.split(',').forEach(entry => {
-          let trimmed = entry ? String(entry).trim() : '';
-          if (trimmed.includes(':')) {
-            const parts = trimmed.split(':');
-            const name = parts[0].trim();
-            const id = parseInt(parts[1].trim(), 10);
-            if (name && !isNaN(id)) {
-              this.manualDefs.push({ id, key: name });
-            }
-          }
-        });
-      }
-    }
-    else {
-      // Mode: Auto (Default)
-      // NEW: Auto-Mode now ALSO uses manualText (UI stores name:id pairs there)
-      // This gives us the IDs we need!
-      if (manualText) {
-        manualText.split(',').forEach(entry => {
-          let trimmed = entry ? String(entry).trim() : '';
-          if (trimmed.includes(':')) {
-            const parts = trimmed.split(':');
-            const name = parts[0].trim();
-            const id = parseInt(parts[1].trim(), 10);
-            if (name && !isNaN(id)) {
-              this.manualDefs.push({ id, key: name });
-            }
-          }
-        });
-      }
-
-      // Legacy: Also parse variablesText for backward compatibility
-      this.variables = text
-        .split(',')
-        .map((entry) => (entry ? String(entry).trim() : ''))
-        .filter((entry) => entry.length > 0);
+      });
     }
 
     let nc;

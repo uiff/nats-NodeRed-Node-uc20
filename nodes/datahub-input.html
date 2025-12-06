@@ -6,12 +6,8 @@
       name: { value: "" },
       connection: { type: "uos-config", required: true },
       providerId: { value: "", required: true },
-      variablesText: { value: "" },
       manualVariables: { value: "" },
-      singleName: { value: "" },
-      singleId: { value: "" },
-      mode: { value: "auto" },
-      triggerMode: { value: "event" }, // event or poll
+      triggerMode: { value: "event" },
       pollingInterval: { value: 0, validate: RED.validators.number() }
     },
     inputs: 1,
@@ -19,32 +15,11 @@
     icon: "white/datahub-input.svg",
     label: function () {
       if (this.name) return this.name;
-      if (this.mode === 'manual_single' && this.singleName) return this.singleName;
-      return "u-OS " + (this.providerId || "Data Hub");
+      return "DataHub - IN";
     },
     paletteLabel: "DataHub - IN",
     oneditprepare: function () {
       const node = this;
-
-      // --- Mode Visibility Logic ---
-      const $modeSelect = $('#node-input-mode');
-      const $autoRow = $('#mode-auto-row');
-      const $manualSingleRow = $('#mode-manual-single-row');
-      const $manualMultiRow = $('#mode-manual-multi-row');
-
-      const updateModeVisibility = () => {
-        const mode = $modeSelect.val();
-        $autoRow.hide();
-        $manualSingleRow.hide();
-        $manualMultiRow.hide();
-
-        if (mode === 'auto') $autoRow.show();
-        else if (mode === 'manual_single') $manualSingleRow.show();
-        else if (mode === 'manual_multi') $manualMultiRow.show();
-      };
-
-      $modeSelect.on('change', updateModeVisibility);
-      updateModeVisibility();
 
       // --- Trigger Mode (Event/Poll) Visibility ---
       const $triggerMode = $('#node-input-triggerMode');
@@ -61,203 +36,6 @@
       $triggerMode.on('change', updateTriggerVisibility);
       updateTriggerVisibility();
 
-      // --- Provider & Variables Loading (Auto Mode) ---
-      const $config = $('#node-input-connection');
-      const $providerSelect = $('#node-input-providerId');
-      const $providerRefresh = $('#node-input-provider-refresh');
-      const $varsContainer = $('#node-input-variables-container');
-      const $varsRefresh = $('#node-input-vars-refresh');
-      const $varsStatus = $('#vars-status');
-      const $variablesHidden = $('#node-input-variablesText');
-
-      let providerRequest = 0;
-      let variableRequest = 0;
-
-      const normalizeProviders = (payload) => {
-        if (Array.isArray(payload)) return payload;
-        if (payload && Array.isArray(payload.providers)) return payload.providers;
-        return [];
-      };
-
-      const normalizeVariables = (payload) => {
-        if (Array.isArray(payload)) return payload;
-        if (payload && Array.isArray(payload.variables)) return payload.variables;
-        return [];
-      };
-
-      const providerValue = (p) => p.id || p.providerId || p.name;
-      const providerLabel = (p) => p.name || p.displayName || p.providerId || p.id;
-      const variableValue = (v) => v.key || v.name || v.path || v.id;
-      const variableLabel = (v) => v.tagName || v.key || v.name || v.path || v.id;
-
-      const setVarsStatus = (msg) => $varsStatus.text(msg || '');
-
-      const syncVariablesField = () => {
-        const selected = [];
-        const mappings = []; // name:id pairs for backend
-
-        $varsContainer.find('input[type="checkbox"]:checked').each(function () {
-          const name = $(this).val();
-          const id = $(this).attr('data-id');
-          selected.push(name);
-          if (id) {
-            mappings.push(`${name}:${id}`);
-          }
-        });
-
-        $variablesHidden.val(selected.join(','));
-        // CRITICAL: Also save as manualVariables so backend has IDs!
-        $('#node-input-manualVariables').val(mappings.join(','));
-
-        setVarsStatus(`${selected.length} variable(s) selected`);
-      };
-
-      const loadVariables = (providerId, keepSelection = false) => {
-        const configId = $config.val();
-        if (!configId || !providerId) {
-          $varsContainer.empty().append('<div style="color:#999; padding:10px; text-align:center;">Select a provider first</div>');
-          setVarsStatus('');
-          return;
-        }
-
-        const seq = ++variableRequest;
-        setVarsStatus('Loading...');
-        $varsContainer.empty().append('<div style="color:#999; padding:10px; text-align:center;"><i class="fa fa-spinner fa-spin"></i> Loading...</div>');
-
-        $.getJSON(`uos/providers/${configId}/${encodeURIComponent(providerId)}/variables`)
-          .done((payload) => {
-            if (seq !== variableRequest) return;
-
-            const vars = normalizeVariables(payload);
-            $varsContainer.empty();
-
-            if (!vars.length) {
-              $varsContainer.append('<div style="color:#999; padding:10px; text-align:center;">No variables found</div>');
-              setVarsStatus('No variables');
-              return;
-            }
-
-            const preset = keepSelection
-              ? ($variablesHidden.val() || '').split(',').map(e => e.trim()).filter(Boolean)
-              : (node.variablesText || '').split(',').map(e => e.trim()).filter(Boolean);
-            const currentSet = new Set(preset);
-
-            vars.sort((a, b) => (variableLabel(a) || '').localeCompare(variableLabel(b) || ''));
-
-            // Store variable objects for later ID extraction
-            const variableMap = new Map();
-
-            vars.forEach((variable) => {
-              const value = variableValue(variable);
-              if (!value) return;
-
-              variableMap.set(value, variable); // Store full object
-
-              const isChecked = currentSet.has(value);
-              const row = $('<div style="margin-bottom:2px;"></div>');
-              const checkbox = $('<input type="checkbox">')
-                .val(value)
-                .prop('checked', isChecked)
-                .attr('data-id', variable.id || '') // Store ID in data attribute
-                .on('change', syncVariablesField);
-              const label = $('<label style="cursor:pointer; margin-bottom:0;"></label>')
-                .append(checkbox)
-                .append(' ' + variableLabel(variable));
-              row.append(label);
-              $varsContainer.append(row);
-            });
-
-            syncVariablesField();
-          })
-          .fail((xhr) => {
-            if (seq !== variableRequest) return;
-            const error = xhr?.responseJSON?.error;
-            let msg = error || xhr.statusText || 'Failed to load';
-            if (xhr.status === 404 && error === 'config not found') {
-              msg = 'Config not deployed. Deploy first.';
-            }
-            $varsContainer.empty().append(`<div style="color:#c55; padding:10px;">${msg}</div>`);
-            setVarsStatus('Error');
-          });
-      };
-
-      const loadProviders = (force = false) => {
-        const configId = $config.val();
-        if (!configId) {
-          $providerSelect.empty().append('<option value="">Select Config first</option>').prop('disabled', true);
-          return;
-        }
-
-        const seq = ++providerRequest;
-        $providerSelect.prop('disabled', true);
-
-        $.getJSON(`uos/providers/${configId}`)
-          .done((payload) => {
-            if (seq !== providerRequest) return;
-            const list = normalizeProviders(payload);
-            $providerSelect.empty();
-
-            if (!list.length) {
-              $providerSelect.append('<option value="">No providers found</option>').prop('disabled', true);
-              return;
-            }
-
-            let foundInitial = false;
-            list.forEach((prov) => {
-              const val = providerValue(prov);
-              if (!val) return;
-              const opt = $('<option></option>').val(val).text(providerLabel(prov));
-              $providerSelect.append(opt);
-              if (val === node.providerId) foundInitial = true;
-            });
-            $providerSelect.prop('disabled', false);
-
-            if (node.providerId && foundInitial) {
-              $providerSelect.val(node.providerId);
-            } else if (node.providerId) {
-              $providerSelect.append($('<option></option>').val(node.providerId).text(node.providerId + ' (unknown)'));
-              $providerSelect.val(node.providerId);
-            }
-
-            if (!$providerSelect.val()) {
-              $providerSelect.val($providerSelect.find('option:first').val());
-            }
-
-            const selected = $providerSelect.val();
-            if (selected) loadVariables(selected, false);
-          })
-          .fail((xhr) => {
-            if (seq !== providerRequest) return;
-            $providerSelect.empty().append('<option value="">Error loading providers</option>').prop('disabled', true);
-          });
-      };
-
-      $providerSelect.on('change', () => {
-        $variablesHidden.val('');
-        const val = $providerSelect.val();
-        if (val) loadVariables(val, false);
-      });
-
-      $providerRefresh.on('click', () => loadProviders(true));
-      $varsRefresh.on('click', () => {
-        const val = $providerSelect.val();
-        if (val) loadVariables(val, true);
-      });
-
-      $('#node-input-select-all').on('click', () => {
-        $varsContainer.find('input[type="checkbox"]').prop('checked', true).trigger('change');
-      });
-
-      $('#node-input-select-none').on('click', () => {
-        $varsContainer.find('input[type="checkbox"]').prop('checked', false).trigger('change');
-      });
-
-      $config.on('change', () => {
-        setTimeout(() => loadProviders(false), 50);
-      });
-
-      setTimeout(() => loadProviders(false), 100);
-
       // --- Manual Table Logic ---
       const $manualList = $('#node-input-manual-def-list');
       const $manualHidden = $('#node-input-manualVariables');
@@ -266,7 +44,7 @@
         addItem: function (row, index, data) {
           row.css({ display: 'flex', alignItems: 'center', gap: '5px' });
 
-          $('<input/>', { class: 'node-input-manual-name', type: 'text', placeholder: 'Name', style: 'flex:1;' })
+          $('<input/>', { class: 'node-input-manual-name', type: 'text', placeholder: 'Variable Name', style: 'flex:1;' })
             .val(data.name || '')
             .appendTo(row);
 
@@ -276,7 +54,7 @@
         },
         removable: true,
         header: $('<div></div>').append(
-          $.parseHTML('<div style="display:flex; gap:5px; padding-left:5px;"><div style="flex:1;">Variable Name</div><div style="width:80px;">ID</div></div>')
+          $.parseHTML('<div style="display:flex; gap:5px; padding-left:5px;"><div style="flex:1;">Variable Name (Key)</div><div style="width:80px;">ID (Number)</div></div>')
         ),
         addButton: 'Add Variable'
       });
@@ -320,75 +98,20 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-providerId"><i class="fa fa-server"></i> Provider</label>
-        <div style="display:inline-flex; width:70%;">
-            <select id="node-input-providerId" style="flex:1;"></select>
-            <button id="node-input-provider-refresh" class="red-ui-button" type="button" style="margin-left:5px;">
-                <i class="fa fa-refresh"></i>
-            </button>
-        </div>
+        <label for="node-input-providerId"><i class="fa fa-server"></i> Provider ID</label>
+        <input type="text" id="node-input-providerId" placeholder="e.g. u_os_sbm">
     </div>
 
     <div class="form-row">
-        <label for="node-input-mode"><i class="fa fa-sliders"></i> Mode</label>
-        <select id="node-input-mode">
-            <option value="auto">Auto-Discovery</option>
-            <option value="manual_single">Manual: Single Variable</option>
-            <option value="manual_multi">Manual: Multiple Variables</option>
-        </select>
+        <label><i class="fa fa-table"></i> Variables</label>
+        <div style="width:100%; margin-top:8px;">
+            <ol id="node-input-manual-def-list"></ol>
+        </div>
+        <input type="hidden" id="node-input-manualVariables">
     </div>
 
-    <!-- Auto Mode -->
-    <div id="mode-auto-row" class="mode-row" style="display:none;">
-        <div class="form-row">
-            <label><i class="fa fa-list"></i> Variables</label>
-            <div style="display:inline-block; width:70%;">
-                <div style="margin-bottom:5px;">
-                    <button id="node-input-vars-refresh" class="red-ui-button red-ui-button-small" type="button">
-                        <i class="fa fa-refresh"></i> Refresh
-                    </button>
-                    <button id="node-input-select-all" class="red-ui-button red-ui-button-small" type="button" style="margin-left:5px;">All</button>
-                    <button id="node-input-select-none" class="red-ui-button red-ui-button-small" type="button" style="margin-left:5px;">None</button>
-                    <span id="vars-status" style="margin-left:10px; font-style:italic; color:#888;"></span>
-                </div>
-            </div>
-        </div>
-        <div class="form-row">
-            <input type="hidden" id="node-input-variablesText">
-            <div id="node-input-variables-container" style="border:1px solid #ccc; border-radius:4px; height:200px; overflow-y:auto; padding:5px; background:#fff; width:100%;"></div>
-            <div class="form-tips" style="margin-top:5px;">
-                <i class="fa fa-info-circle"></i> Requires <b>Deploy</b> first
-            </div>
-        </div>
-    </div>
-
-    <!-- Manual Single Mode -->
-    <div id="mode-manual-single-row" class="mode-row" style="display:none;">
-        <div class="form-row">
-            <label for="node-input-singleName"><i class="fa fa-font"></i> Variable Name</label>
-            <input type="text" id="node-input-singleName" placeholder="e.g. manufacturer_name">
-        </div>
-        <div class="form-row">
-            <label for="node-input-singleId"><i class="fa fa-hashtag"></i> Variable ID</label>
-            <input type="number" id="node-input-singleId" placeholder="e.g. 0">
-        </div>
-        <div class="form-tips">
-            <i class="fa fa-info-circle"></i> Use Manual Mode if Auto-Discovery fails (Permission 403)
-        </div>
-    </div>
-
-    <!-- Manual Multi Mode -->
-    <div id="mode-manual-multi-row" class="mode-row" style="display:none;">
-        <div class="form-row">
-            <label><i class="fa fa-table"></i> Variables</label>
-            <div style="width:100%; margin-top:8px;">
-                <ol id="node-input-manual-def-list"></ol>
-            </div>
-            <input type="hidden" id="node-input-manualVariables">
-        </div>
-        <div class="form-tips">
-            <i class="fa fa-info-circle"></i> Map Variable Names to IDs
-        </div>
+    <div class="form-tips">
+        <i class="fa fa-info-circle"></i> Enter Variable Names and their IDs. Only these variables will be read.
     </div>
 
     <hr style="margin:15px 0;">
@@ -408,32 +131,40 @@
 </script>
 
 <script type="text/html" data-help-name="datahub-input">
-    <p>Reads variables from the u-OS Data Hub (Snapshot or Subscription).</p>
+    <p>Reads variables from the u-OS Data Hub via NATS.</p>
     
     <h3>Configuration</h3>
     <dl class="message-properties">
-        <dt>Mode</dt>
+        <dt>Provider ID</dt>
+        <dd>The Data Hub Provider ID (e.g. <code>u_os_sbm</code>, <code>hub</code>)</dd>
+        
+        <dt>Variables</dt>
         <dd>
+            Manual mapping of Variable Names to IDs. Each row specifies:
             <ul>
-                <li><b>Auto-Discovery:</b> Downloads variable list from hub (requires permissions)</li>
-                <li><b>Manual Single:</b> Enter one variable's Name and ID manually</li>
-                <li><b>Manual Multi:</b> Enter multiple variables via table</li>
+                <li><b>Variable Name:</b> The key/path (e.g. <code>manufacturer_name</code>)</li>
+                <li><b>ID:</b> The numeric ID from the Data Hub</li>
             </ul>
+            Only variables listed here will be output.
         </dd>
         
         <dt>Trigger</dt>
         <dd>
             <ul>
-                <li><b>Event:</b> Outputs only when value changes (default)</li>
-                <li><b>Poll:</b> Queries values at fixed interval</li>
+                <li><b>Event:</b> Outputs only when value changes (default, efficient)</li>
+                <li><b>Poll:</b> Queries values at fixed interval (less efficient)</li>
             </ul>
         </dd>
     </dl>
     
-    <h3>Permissions / 403 Error</h3>
+    <h3>Finding Variable IDs</h3>
     <p>
-        If Auto-Discovery fails with "Permission Violation" or "Empty List", use <b>Manual Mode</b>.
-        You need the Variable ID (number) which works even without discovery permissions.
+        You can find Variable IDs using:
+        <ul>
+            <li>The u-Control Web Interface</li>
+            <li>REST API: <code>GET /datahub/v1/providers/{providerId}/variables</code></li>
+            <li>NATS query tools</li>
+        </ul>
     </p>
 
     <div style="margin-top:10px; font-size:0.8em; color:#666; border-top:1px solid #eee; padding-top:5px;">
