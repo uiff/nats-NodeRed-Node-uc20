@@ -59,6 +59,41 @@
       $('#node-config-input-scope').val(FIXED_SCOPE);
       $('#uos-scope-fixed').text(FIXED_SCOPE);
 
+      const $testBtn = $('#uos-config-test-connection');
+      const $testStatus = $('#uos-test-status');
+
+      $testBtn.on('click', function () {
+        // Collect current values directly from inputs
+        const host = $('#node-config-input-host').val();
+        const port = $('#node-config-input-port').val();
+        const clientId = $('#node-config-input-clientId').val();
+        const clientSecret = $('#node-config-input-clientSecret').val();
+
+        if (!host || !clientId || !clientSecret) {
+          $testStatus.html('<span style="color:var(--red-ui-text-color-error)"><i class="fa fa-exclamation-triangle"></i> Please fill Host, Client ID and Secret</span>');
+          return;
+        }
+
+        $testBtn.prop('disabled', true);
+        $testStatus.html('<i class="fa fa-spinner fa-spin"></i> Connecting...');
+
+        $.ajax({
+          url: 'uos/check-connection',
+          type: 'POST',
+          data: { host, port, clientId, clientSecret },
+          success: function (resp) {
+            $testStatus.html(`<span style="color:green"><i class="fa fa-check"></i> Connection OK! Found <strong>${resp.providers}</strong> providers.</span>`);
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            const msg = jqXHR.responseJSON?.error || textStatus;
+            $testStatus.html(`<span style="color:var(--red-ui-text-color-error)"><i class="fa fa-times"></i> Error: ${msg}</span>`);
+          },
+          complete: function () {
+            $testBtn.prop('disabled', false);
+          }
+        });
+      });
+
       if (node.credentials && node.credentials.clientId) {
         fetchScopes();
       }
@@ -99,6 +134,12 @@
       <span id="uos-scope-display" class="form-tips">Save first to query granted scopes.</span>
       <span id="uos-scope-spinner" class="fa fa-spinner fa-spin" style="display:none;"></span>
     </div>
+  </div>
+  <div class="form-row">
+     <button class="red-ui-button" id="uos-config-test-connection" type="button" style="width:100%">
+       <i class="fa fa-plug"></i> Test Connection & List Providers
+     </button>
+     <div id="uos-test-status" class="form-tips" style="margin-top:5px;"></div>
   </div>
 </script>
 

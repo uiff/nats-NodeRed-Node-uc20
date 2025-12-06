@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { connect } = require('nats');
+const https = require('https');
 const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly'; // hub.providers.read removed as it does not exist
 
 if (!process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
@@ -204,6 +205,79 @@ module.exports = function (RED) {
       }
       catch (err) {
         res.status(500).json({ error: err.message });
+      }
+    });
+
+    // Stateless connection check for "Test Connection" button
+    RED.httpAdmin.post('/uos/check-connection', async (req, res) => {
+      const { host, port, clientId, clientSecret } = req.body;
+      if (!host || !clientId || !clientSecret) {
+        res.status(400).json({ error: 'Missing host, clientId or clientSecret' });
+        return;
+      }
+
+      let nc = null;
+      try {
+        // 1. Get Token
+        const tokenEndpoint = `https://${host}/oauth2/token`;
+        const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+        const params = new URLSearchParams({
+          grant_type: 'client_credentials',
+          scope: DEFAULT_SCOPE,
+        });
+
+        // Use custom agent to allow self-signed certs safely if needed (or rely on env var)
+        // Note: process.env.NODE_TLS_REJECT_UNAUTHORIZED is already handled globally in this file
+
+        const tokenRes = await fetch(tokenEndpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${basic}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
+          body: params,
+        });
+
+        if (!tokenRes.ok) {
+          throw new Error(`Token fetch failed: ${tokenRes.status} ${await tokenRes.text()}`);
+        }
+        const tokenJson = await tokenRes.json();
+        const token = tokenJson.access_token;
+
+        // 2. Fetch Providers (API Check)
+        // Try fallback logic similar to instance method
+        const tryFetch = async (url) => {
+          const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+          if (!r.ok && r.status !== 404) throw new Error(`API ${r.status}`);
+          return r.ok ? r : null;
+        };
+
+        let apiRes = await tryFetch(`https://${host}/u-os-hub/api/v1/providers`);
+        if (!apiRes) apiRes = await tryFetch(`https://${host}/datahub/v1/providers`);
+
+        if (!apiRes) throw new Error('API endoint not found');
+
+        const providers = await apiRes.json();
+        const count = Array.isArray(providers) ? providers.length : 0;
+
+        // 3. NATS Check (optional but good)
+        // We verify NATS connectivity quickly
+        nc = await connect({
+          servers: `nats://${host}:${port || 49360}`,
+          token,
+          name: 'nodered-check',
+          waitOnFirstConnect: true,
+          maxReconnectAttempts: 1,
+        });
+
+        res.json({ success: true, providers: count, connected: true });
+      }
+      catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+      finally {
+        if (nc) nc.drain().catch(() => { });
       }
     });
   }
