@@ -69,7 +69,23 @@ module.exports = function (RED) {
     }
     else {
       // Mode: Auto (Default)
-      // Use the standard checkbox list
+      // NEW: Auto-Mode now ALSO uses manualText (UI stores name:id pairs there)
+      // This gives us the IDs we need!
+      if (manualText) {
+        manualText.split(',').forEach(entry => {
+          let trimmed = entry ? String(entry).trim() : '';
+          if (trimmed.includes(':')) {
+            const parts = trimmed.split(':');
+            const name = parts[0].trim();
+            const id = parseInt(parts[1].trim(), 10);
+            if (name && !isNaN(id)) {
+              this.manualDefs.push({ id, key: name });
+            }
+          }
+        });
+      }
+
+      // Legacy: Also parse variablesText for backward compatibility
       this.variables = text
         .split(',')
         .map((entry) => (entry ? String(entry).trim() : ''))

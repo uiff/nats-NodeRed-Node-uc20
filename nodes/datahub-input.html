@@ -94,10 +94,21 @@
 
       const syncVariablesField = () => {
         const selected = [];
+        const mappings = []; // name:id pairs for backend
+
         $varsContainer.find('input[type="checkbox"]:checked').each(function () {
-          selected.push($(this).val());
+          const name = $(this).val();
+          const id = $(this).attr('data-id');
+          selected.push(name);
+          if (id) {
+            mappings.push(`${name}:${id}`);
+          }
         });
+
         $variablesHidden.val(selected.join(','));
+        // CRITICAL: Also save as manualVariables so backend has IDs!
+        $('#node-input-manualVariables').val(mappings.join(','));
+
         setVarsStatus(`${selected.length} variable(s) selected`);
       };
 
@@ -133,15 +144,21 @@
 
             vars.sort((a, b) => (variableLabel(a) || '').localeCompare(variableLabel(b) || ''));
 
+            // Store variable objects for later ID extraction
+            const variableMap = new Map();
+
             vars.forEach((variable) => {
               const value = variableValue(variable);
               if (!value) return;
+
+              variableMap.set(value, variable); // Store full object
 
               const isChecked = currentSet.has(value);
               const row = $('<div style="margin-bottom:2px;"></div>');
               const checkbox = $('<input type="checkbox">')
                 .val(value)
                 .prop('checked', isChecked)
+                .attr('data-id', variable.id || '') // Store ID in data attribute
                 .on('change', syncVariablesField);
               const label = $('<label style="cursor:pointer; margin-bottom:0;"></label>')
                 .append(checkbox)
