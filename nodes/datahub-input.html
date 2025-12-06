@@ -171,72 +171,83 @@
               return;
             }
             const list = normalizeProviders(payload);
-            return;
-          }
+            $providerSelect.empty();
+            if (!list.length) {
+              $providerSelect.append('<option value="">No providers available</option>');
+              $providerSelect.prop('disabled', true);
+              setProviderStatus('No providers returned. Verify Data Hub access.');
+              showManualProvider('No providers returned. Enter the ID manually if you know it.');
+              return;
+            }
+            list.forEach((prov) => {
+              const value = providerValue(prov);
+              if (!value) {
+                return;
+              }
               const option = $('<option></option>')
-          .attr('value', value)
-          .text(providerLabel(prov));
-        $providerSelect.append(option);
-      });
-  $providerSelect.prop('disabled', false);
-  if (initialProvider) {
-    $providerSelect.val(initialProvider);
-  }
-  if (!$providerSelect.val()) {
-    $providerSelect.val($providerSelect.find('option:first').attr('value'));
-  }
-  const selected = $providerSelect.val();
-  setProviderValue(selected);
-  setProviderStatus('Choose the provider you want to subscribe to.');
-  loadVariables(selected);
+                .attr('value', value)
+                .text(providerLabel(prov));
+              $providerSelect.append(option);
+            });
+            $providerSelect.prop('disabled', false);
+            if (initialProvider) {
+              $providerSelect.val(initialProvider);
+            }
+            if (!$providerSelect.val()) {
+              $providerSelect.val($providerSelect.find('option:first').attr('value'));
+            }
+            const selected = $providerSelect.val();
+            setProviderValue(selected);
+            setProviderStatus('Choose the provider you want to subscribe to.');
+            loadVariables(selected);
           })
           .fail((xhr) => {
-    console.error('Provider load failed', xhr);
-    const error = xhr?.responseJSON?.error;
-    let msg = error || xhr.statusText || 'Failed to load providers.';
-    if (xhr.status === 404 && error === 'config not found') {
-      msg = 'Config not deployed yet. Please Deploy first.';
-    }
-    showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually.`);
-  });
+            console.error('Provider load failed', xhr);
+            const error = xhr?.responseJSON?.error;
+            let msg = error || xhr.statusText || 'Failed to load providers.';
+            if (xhr.status === 404 && error === 'config not found') {
+              msg = 'Config not deployed yet. Please Deploy first.';
+            }
+            showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually.`);
+          });
       };
 
-  $variables.on('change', () => {
-    syncVariablesField();
-  });
+      $variables.on('change', () => {
+        syncVariablesField();
+      });
 
-  $providerSelect.on('change', () => {
-    const value = $providerSelect.val();
-    setProviderValue(value);
-    $variablesHidden.val('');
-    syncVariablesField();
-    loadVariables(value, false);
-  });
+      $providerSelect.on('change', () => {
+        const value = $providerSelect.val();
+        setProviderValue(value);
+        $variablesHidden.val('');
+        syncVariablesField();
+        loadVariables(value, false);
+      });
 
-  $providerManual.on('change keyup paste', () => {
-    const value = $providerManual.val();
-    setProviderValue(value);
-    $variablesHidden.val('');
-    syncVariablesField();
-    if (value) {
-      loadVariables(value, false);
-    }
-  });
+      $providerManual.on('change keyup paste', () => {
+        const value = $providerManual.val();
+        setProviderValue(value);
+        $variablesHidden.val('');
+        syncVariablesField();
+        if (value) {
+          loadVariables(value, false);
+        }
+      });
 
-  $config.on('change', () => {
-    loadProviders();
-  });
+      $config.on('change', () => {
+        loadProviders();
+      });
 
-  syncVariablesField();
-  // Delay provider loading slightly to ensure the config typedInput is ready.
-  setTimeout(() => loadProviders(), 100);
+      syncVariablesField();
+      // Delay provider loading slightly to ensure the config typedInput is ready.
+      setTimeout(() => loadProviders(), 100);
     },
-  label: function () {
-    return this.name || `Input ${this.providerId || ''}`;
-  },
-  labelStyle: function () {
-    return this.name ? 'node_label_italic' : '';
-  }
+    label: function () {
+      return this.name || `Input ${this.providerId || ''}`;
+    },
+    labelStyle: function () {
+      return this.name ? 'node_label_italic' : '';
+    }
   });
 </script>
 
