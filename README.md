@@ -31,38 +31,38 @@ Fields:
 - **Host / Port** – IP address of your controller (e.g. `192.168.10.100`) and the NATS port `49360`.
 - **Client Name** – used for the NATS inbox prefix (`_INBOX.<name>`).
 - **Client ID / Secret** – OAuth2 client credentials created in the Control Center.
-- **Scope** – fixed to `hub.variables.provide hub.variables.readwrite hub.variables.readonly hub.providers.read` so the nodes can register providers and query the REST metadata; it is not editable in the UI.
+- **Scope** – defaults to `hub.variables.provide hub.variables.readwrite hub.variables.readonly`. Note: The API does not require a specific "read providers" scope; listing providers is covered by the standard variable scopes.
 - **Granted scopes** – click *Refresh* to query the token endpoint and show the scopes currently granted to that client.
 
-The config node automatically fetches tokens via Client Credentials flow and exposes helper endpoints so other nodes can list providers and variables. The token endpoint is derived from the configured host (`https://<host>/oauth2/token`), so there is no additional field to maintain.
+The config node automatically fetches tokens via Client Credentials flow.
 
 ## DataHub Input Node
 
-- Select the u-OS config node, then choose one of the discovered providers from the dropdown (the node queries `/datahub/v1/providers` for you). If your OAuth client lacks read-only scope, the dropdown is disabled and you can type the provider ID manually.
-- Pick the variables you need from the multi-select list. Leave it empty to receive all variables from the provider. (When manual provider input is used the list may stay empty, because it also requires the read-only permission.)
-- The node outputs messages with the structure:
-  ```json
-  {
-    "type": "snapshot" | "change",
-    "variables": [
-      {
-        "providerId": "sampleprovider",
-        "id": 5,
-        "key": "diagnostics.status_text",
-        "value": "running",
-        "quality": "GOOD",
-        "timestampNs": 1700000000000
-      }
-    ]
-  }
-  ```
-- Deploy multiple nodes if you want to monitor different providers.
+- Select the u-OS config node, then choose one of the discovered providers from the dropdown. 
+- **Troubleshooting**: If the dropdown remains empty, check the Node-RED debug tab. The node logs the API response count. Ensure your OAuth client has `hub.variables.readonly` permission.
+- Pick the variables you need from the multi-select list. Leave it empty to receive all variables.
 
 ## DataHub Output Node
 
-- Reuses the u-OS config node. The provider ID defaults to `nodered` and is created automatically.
-- Send a JSON object to the input pin. Nested objects become dot-separated keys (e.g. `{ "line1": { "status": "ok" } }` ⇒ `line1.status`).
-- The node infers data types (INT64/FLOAT64/BOOLEAN/STRING) and publishes `VariablesChangedEvent`s. New keys trigger an automatic provider definition update.
+- Reuses the u-OS config node. The provider ID defaults to `nodered` and is created automatically upon the first message.
+- Send a JSON object to the input pin. **Nested objects are supported** and create subcategories automatically:
+  ```json
+  {
+    "machine": {
+      "temperature": 45.2,
+      "status": {
+        "active": true,
+        "mode": "remote"
+      }
+    }
+  }
+  ```
+  This creates/updates the following variables:
+  - `machine.temperature` (FLOAT64)
+  - `machine.status.active` (BOOLEAN)
+  - `machine.status.mode` (STRING)
+
+- The node infers data types (INT64/FLOAT64/BOOLEAN/STRING) and automatically publishes definition updates when new keys are seen.
 - Read requests (`v1.loc.<provider>.vars.qry.read`) are answered using the most recent values, so other consumers can subscribe to your Node-RED provider.
 
 ## Example Flow

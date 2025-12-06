@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 const { connect } = require('nats');
-const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly hub.providers.read';
+const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly'; // hub.providers.read removed as it does not exist
 
 if (!process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -98,7 +98,9 @@ module.exports = function (RED) {
       if (!res.ok) {
         throw new Error(`Provider list failed: ${res.status}`);
       }
-      return res.json();
+      const json = await res.json();
+      this.log(`Fetched ${Array.isArray(json) ? json.length : 'unknown'} providers from API`);
+      return json;
     };
 
     this.fetchProviderVariables = async (providerId) => {
@@ -112,7 +114,9 @@ module.exports = function (RED) {
       if (!res.ok) {
         throw new Error(`Variable list failed: ${res.status}`);
       }
-      return res.json();
+      const json = await res.json();
+      this.log(`Fetched ${Array.isArray(json) ? json.length : 'unknown'} variables via API for provider ${providerId}`);
+      return json;
     };
 
     this.acquire = async () => {

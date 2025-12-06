@@ -35,12 +35,16 @@ const flattenPayload = (value, prefix = '') => {
   const path = (key) => (prefix ? `${prefix}.${key}` : key);
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
     Object.entries(value).forEach(([key, val]) => {
-      entries.push(...flattenPayload(val, path(key)));
+      if (val !== undefined) {
+        entries.push(...flattenPayload(val, path(key)));
+      }
     });
   }
   else if (Array.isArray(value)) {
     value.forEach((val, idx) => {
-      entries.push(...flattenPayload(val, prefix ? `${prefix}[${idx}]` : `[${idx}]`));
+      if (val !== undefined) {
+        entries.push(...flattenPayload(val, prefix ? `${prefix}[${idx}]` : `[${idx}]`));
+      }
     });
   }
   else {
@@ -129,14 +133,21 @@ module.exports = function (RED) {
               return;
             }
             const entries = flattenPayload(msg.payload);
+
+            // Optimization: If payload is empty after flattening (e.g. only undefined values), stop here
             if (!entries.length) {
               done();
               return;
             }
+
             const [payloadsMod, subjectsMod] = await loadModules();
             let definitionsChanged = false;
             const states = [];
+
             entries.forEach(({ key, value }) => {
+              // Ensure we don't accidentally send undefined/null as value if logic slipped through
+              if (value === undefined || value === null) return;
+
               const { def, created } = ensureDefinition(key, inferType(value));
               if (created) {
                 definitionsChanged = true;

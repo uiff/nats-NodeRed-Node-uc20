@@ -10,7 +10,7 @@
     inputs: 1,
     outputs: 1,
     icon: "white/datahub-output.svg",
-    oneditprepare: function() {},
+    oneditprepare: function () { },
     label: function () {
       return this.name || `Output ${this.providerId || ''}`;
     },
@@ -43,12 +43,14 @@
     <dt>Provider ID</dt>
     <dd>Defaults to <code>nodered</code>; change it if you want to publish under another provider name.</dd>
   </dl>
-  <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation:</p>
+  <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{
-  "diagnostics": {
-    "status_text": "running",
-    "error_count": 0
+  "machine": {
+    "status": "running",
+    "details": {
+      "temp": 45.2
+    }
   }
 }</pre>
-  <p>becomes variables <code>diagnostics.status_text</code> and <code>diagnostics.error_count</code> in the Data Hub.</p>
+  <p>becomes variables <code>machine.status</code> and <code>machine.details.temp</code> in the Data Hub.</p>
 </script>

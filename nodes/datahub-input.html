@@ -11,7 +11,7 @@
     inputs: 0,
     outputs: 1,
     icon: "white/datahub-input.svg",
-    oneditprepare: function() {
+    oneditprepare: function () {
       const node = this;
       const $config = $('#node-input-connection');
       const $providerHidden = $('#node-input-providerId');
@@ -29,6 +29,7 @@
         .filter((entry) => entry.length > 0);
 
       const normalizeProviders = (payload) => {
+        console.log('normalizeProviders payload:', payload);
         if (!payload) {
           return [];
         }
@@ -42,6 +43,7 @@
       };
 
       const normalizeVariables = (payload) => {
+        console.log('normalizeVariables payload:', payload);
         if (!payload) {
           return [];
         }
@@ -54,8 +56,11 @@
         return [];
       };
 
-      const providerLabel = (provider) => provider.name || provider.displayName || provider.providerId || provider.id || 'Unnamed provider';
-      const providerValue = (provider) => provider.providerId || provider.id || provider.name || '';
+      // API returns [{ "id": "..." }] for providers
+      const providerLabel = (provider) => provider.displayName || provider.name || provider.id || provider.providerId || 'Unnamed provider';
+      const providerValue = (provider) => provider.id || provider.providerId || provider.name || '';
+
+      // API returns [{ "key": "..." }] for variables
       const variableValue = (variable) => variable.key || variable.name || variable.path || variable.id || '';
       const variableLabel = (variable) => variable.tagName || variable.key || variable.name || variable.path || variable.id || 'Unnamed variable';
 
@@ -130,6 +135,7 @@
             setVariableStatus('Select one or multiple variables (Ctrl/Cmd + click). Leave empty to receive all.');
           })
           .fail((xhr) => {
+            console.error('Variable load failed', xhr);
             const msg = xhr?.responseJSON?.error || xhr.statusText || 'Failed to load variables.';
             setVariableStatus(msg);
             $variables.prop('disabled', true);
@@ -191,6 +197,7 @@
             loadVariables(selected);
           })
           .fail((xhr) => {
+            console.error('Provider load failed', xhr);
             const msg = xhr?.responseJSON?.error || xhr.statusText || 'Failed to load providers.';
             showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually or grant hub.variables.readonly.`);
           });
