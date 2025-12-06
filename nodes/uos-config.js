@@ -125,15 +125,33 @@ module.exports = function (RED) {
 
     this.fetchProviderVariables = async (providerId) => {
       const token = await this.getToken();
-      const res = await fetch(`https://${this.host}/u-os-hub/api/v1/providers/${providerId}/variables`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      if (!res.ok) {
-        throw new Error(`Variable list failed: ${res.status}`);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      };
+
+      const tryFetch = async (url) => {
+        const res = await fetch(url, { headers });
+        if (!res.ok) {
+          if (res.status === 404) return null;
+          throw new Error(`API error ${res.status} from ${url}`);
+        }
+        return res;
+      };
+
+      // 1. Try standard u-OS API
+      let res = await tryFetch(`https://${this.host}/u-os-hub/api/v1/providers/${providerId}/variables`);
+
+      // 2. Fallback to older datahub API
+      if (!res) {
+        this.log(`Falling back to /datahub/v1/providers/${providerId}/variables endpoint`);
+        res = await tryFetch(`https://${this.host}/datahub/v1/providers/${providerId}/variables`);
       }
+
+      if (!res) {
+        throw new Error(`Variable list failed: Path not found (404) for provider ${providerId}`);
+      }
+
       const json = await res.json();
       this.log(`Fetched ${Array.isArray(json) ? json.length : 'unknown'} variables via API for provider ${providerId}`);
       return json;
