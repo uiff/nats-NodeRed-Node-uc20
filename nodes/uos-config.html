@@ -134,14 +134,6 @@
     <span id="uos-scope-fixed" class="form-tips"></span>
   </div>
   <div class="form-row">
-    <label><i class="fa fa-info-circle"></i> Granted scopes</label>
-    <div style="display:flex; align-items:center; gap:0.5rem;">
-      <button class="red-ui-button" id="uos-scope-refresh" type="button">Refresh</button>
-      <span id="uos-scope-display" class="form-tips">Save first to query granted scopes.</span>
-      <span id="uos-scope-spinner" class="fa fa-spinner fa-spin" style="display:none;"></span>
-    </div>
-  </div>
-  <div class="form-row">
      <button class="red-ui-button" id="uos-config-test-connection" type="button" style="width:100%">
        <i class="fa fa-plug"></i> Test Connection & List Providers
      </button>
@@ -207,12 +199,6 @@
       Automatically set to: <code>hub.variables.provide hub.variables.readwrite hub.variables.readonly</code>
       <br>This ensures all DataHub features work correctly.
     </dd>
-
-    <dt>Granted Scopes</dt>
-    <dd>
-      Click <b>"Refresh"</b> after saving to see which scopes the u-Control device actually granted to your client.
-      <br>If this differs from the fixed scope, check your OAuth client settings in u-Control.
-    </dd>
   </dl>
 
   <h4>3. Test Connection</h4>
@@ -235,12 +221,7 @@
     <li>Check Host/Port are correct and device is reachable</li>
     <li>Verify Client ID/Secret match exactly (no extra spaces)</li>
     <li>Ensure the OAuth client exists in u-Control</li>
-  </ul>
-
-  <h4>Granted scopes are empty or different</h4>
-  <ul>
-    <li>Check the OAuth client in u-Control still has the required scopes</li>
-    <li>Try deleting and recreating the OAuth client</li>
+    <li>Verify all <code>hub.variables.*</code> scopes are selected in u-Control</li>
   </ul>
 
   <div style="margin-top:15px; padding-top:10px; border-top:1px solid #ddd; font-size:0.85em; color:#666;">
