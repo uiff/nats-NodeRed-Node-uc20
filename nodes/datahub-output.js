@@ -175,7 +175,7 @@ module.exports = function (RED) {
         });
       }
       catch (err) {
-        this.status({ fill: 'red', shape: 'ring', text: 'error' });
+        this.status({ fill: 'red', shape: 'ring', text: err.message });
         this.error(err.message);
       }
     };

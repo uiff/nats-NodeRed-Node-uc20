@@ -49,13 +49,13 @@ module.exports = function (RED) {
     const processStates = (states) => {
       return states
         .map((state) => ({
-        providerId: this.providerId,
-        id: state.id,
-        key: defMap.get(state.id)?.key || state.id,
-        value: state.value,
-        quality: state.quality,
-        timestampNs: state.timestampNs,
-      }))
+          providerId: this.providerId,
+          id: state.id,
+          key: defMap.get(state.id)?.key || state.id,
+          value: state.value,
+          quality: state.quality,
+          timestampNs: state.timestampNs,
+        }))
         .filter((state) => shouldInclude(state.key));
     };
 
@@ -91,10 +91,13 @@ module.exports = function (RED) {
             }
             this.send({ payload: { type: 'change', variables: filtered } });
           }
-        })().catch((err) => this.warn(`subscription error: ${err.message}`));
+        })().catch((err) => {
+          this.status({ fill: 'red', shape: 'ring', text: 'sub error' });
+          this.error(`subscription error: ${err.message}`);
+        });
       }
       catch (err) {
-        this.status({ fill: 'red', shape: 'ring', text: 'error' });
+        this.status({ fill: 'red', shape: 'ring', text: err.message });
         this.error(err.message);
       }
     };

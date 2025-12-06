@@ -89,16 +89,34 @@ module.exports = function (RED) {
 
     this.fetchProviders = async () => {
       const token = await this.getToken();
-      // Use standard u-OS API path according to OpenAPI spec
-      const res = await fetch(`https://${this.host}/u-os-hub/api/v1/providers`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      if (!res.ok) {
-        throw new Error(`Provider list failed: ${res.status}`);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      };
+
+      // Helper to try fetch
+      const tryFetch = async (url) => {
+        const res = await fetch(url, { headers });
+        if (!res.ok) {
+          if (res.status === 404) return null; // Not found, indicate to try next
+          throw new Error(`API error ${res.status} from ${url}`);
+        }
+        return res;
+      };
+
+      // 1. Try standard u-OS API
+      let res = await tryFetch(`https://${this.host}/u-os-hub/api/v1/providers`);
+
+      // 2. Fallback to older datahub API if 404
+      if (!res) {
+        this.log('Falling back to /datahub/v1/providers endpoint');
+        res = await tryFetch(`https://${this.host}/datahub/v1/providers`);
       }
+
+      if (!res) {
+        throw new Error('Provider list failed: Path not found (tried both /u-os-hub/... and /datahub/...)');
+      }
+
       const json = await res.json();
       this.log(`Fetched ${Array.isArray(json) ? json.length : 'unknown'} providers from API`);
       return json;
