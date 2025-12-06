@@ -162,54 +162,72 @@
           return;
         }
         const seq = ++providerRequest;
+
+        // Check Global Cache First (from "Test Connection")
+        if (window.uOSProvidersCache && window.uOSProvidersCache[configId]) {
+          console.log('Using cached providers for', configId);
+          // Simulate async for consistency
+          setTimeout(() => {
+            if (seq === providerRequest) {
+              populateProviders(window.uOSProvidersCache[configId]);
+            }
+          }, 0);
+          return;
+        }
+
         setProviderStatus('Loading providers…');
         $providerSelect.prop('disabled', true);
         showSelectProvider();
+
         $.getJSON(`uos/providers/${configId}`)
           .done((payload) => {
             if (seq !== providerRequest) {
               return;
             }
-            const list = normalizeProviders(payload);
-            $providerSelect.empty();
-            if (!list.length) {
-              $providerSelect.append('<option value="">No providers available</option>');
-              $providerSelect.prop('disabled', true);
-              setProviderStatus('No providers returned. Verify Data Hub access.');
-              showManualProvider('No providers returned. Enter the ID manually if you know it.');
-              return;
-            }
-            list.forEach((prov) => {
-              const value = providerValue(prov);
-              if (!value) {
-                return;
-              }
-              const option = $('<option></option>')
-                .attr('value', value)
-                .text(providerLabel(prov));
-              $providerSelect.append(option);
-            });
-            $providerSelect.prop('disabled', false);
-            if (initialProvider) {
-              $providerSelect.val(initialProvider);
-            }
-            if (!$providerSelect.val()) {
-              $providerSelect.val($providerSelect.find('option:first').attr('value'));
-            }
-            const selected = $providerSelect.val();
-            setProviderValue(selected);
-            setProviderStatus('Choose the provider you want to subscribe to.');
-            loadVariables(selected);
+            populateProviders(payload);
           })
           .fail((xhr) => {
             console.error('Provider load failed', xhr);
             const error = xhr?.responseJSON?.error;
             let msg = error || xhr.statusText || 'Failed to load providers.';
             if (xhr.status === 404 && error === 'config not found') {
-              msg = 'Config not deployed yet. Please Deploy first.';
+              msg = 'Config not deployed yet. Please use "Test Connection" in Config Node or Deploy first.';
             }
             showManualProvider(`Provider list failed (${msg}). Enter the provider ID manually.`);
           });
+      };
+
+      const populateProviders = (payload) => {
+        const list = normalizeProviders(payload);
+        $providerSelect.empty();
+        if (!list.length) {
+          $providerSelect.append('<option value="">No providers available</option>');
+          $providerSelect.prop('disabled', true);
+          setProviderStatus('No providers returned. Verify Data Hub access.');
+          showManualProvider('No providers returned. Enter the ID manually if you know it.');
+          return;
+        }
+        list.forEach((prov) => {
+          const value = providerValue(prov);
+          if (!value) {
+            return;
+          }
+          const option = $('<option></option>')
+            .attr('value', value)
+            .text(providerLabel(prov));
+          $providerSelect.append(option);
+        });
+        $providerSelect.prop('disabled', false);
+        if (initialProvider) {
+          $providerSelect.val(initialProvider);
+        }
+        if (!$providerSelect.val()) {
+          $providerSelect.val($providerSelect.find('option:first').attr('value'));
+        }
+        const selected = $providerSelect.val();
+        setProviderValue(selected);
+        setProviderStatus('Choose the provider you want to subscribe to.');
+        loadVariables(selected);
       };
 
       $variables.on('change', () => {
