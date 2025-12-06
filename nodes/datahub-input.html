@@ -1,6 +1,6 @@
 <script type="text/javascript">
   RED.nodes.registerType('datahub-input', {
-    category: 'u-OS',
+    category: 'u-OS DataHub NATS',
     color: '#ff9900',
     defaults: {
       name: { value: "" },
@@ -22,7 +22,7 @@
       if (this.mode === 'manual_single' && this.singleName) return this.singleName;
       return "u-OS " + (this.providerId || "Data Hub");
     },
-    paletteLabel: "u-OS Input",
+    paletteLabel: "DataHub - IN",
     oneditprepare: function () {
       const node = this;
 
