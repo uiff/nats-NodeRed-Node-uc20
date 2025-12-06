@@ -131,20 +131,33 @@ module.exports = function (RED) {
           }
 
           try {
-            // Log before request
-            // this.warn(`Requesting snapshot for ${this.providerId}... (DefMap size: ${defMap.size})`);
+            // Resolve requested variable names to IDs
+            let targetIds = [];
+            if (this.variables.length > 0) {
+              // Reverse lookup: Find Def by Key
+              // Only needed if we want to filter at source (which we do now to avoid empty list issues)
+              const requestedKeys = new Set(this.variables);
+              for (const def of defMap.values()) {
+                if (requestedKeys.has(def.key)) {
+                  targetIds.push(Number(def.id));
+                }
+              }
+              if (targetIds.length === 0 && defMap.size > 0) {
+                // We have definitions but found no matching keys for our config.
+                // This implies misconfiguration or name changes.
+                this.warn(`Snapshot Warning: None of the ${this.variables.length} configured variables were found in the Provider Definition.`);
+              }
+            }
 
-            const snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(), { timeout: 2000 });
+            // If we have specific IDs, request only those. Otherwise request all (empty array).
+            const snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 2000 });
 
             const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
             const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
             const states = payloads.decodeVariableList(snapshotObj.variables());
 
-            // this.warn(`Received ${states.length} items from NATS.`);
-
+            // Re-process states (lookup names, formatting)
             const filteredSnapshot = processStates(states);
-
-            // this.warn(`Filtered down to ${filteredSnapshot.length} items. (Selected vars: ${this.variables.length})`);
 
             if (filteredSnapshot.length) {
               this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
@@ -152,7 +165,7 @@ module.exports = function (RED) {
               if (states.length > 0) {
                 this.warn(`Snapshot received data but everything was filtered out. Check Variable selection. Debug: First raw ID: ${states[0].id}, DefMap has it? ${defMap.has(states[0].id)}`);
               } else {
-                this.warn('Snapshot received empty list from Data Hub.');
+                this.warn(`Snapshot received empty list from Data Hub. (Requested ${targetIds.length > 0 ? targetIds.length + ' specific IDs' : 'ALL variables'}).`);
               }
             }
           } catch (requestErr) {
