@@ -31,7 +31,7 @@
   </div>
   <div class="form-row">
     <label for="node-input-providerId"><i class="fa fa-id-badge"></i> Provider ID</label>
-    <input type="text" id="node-input-providerId" placeholder="nodered">
+    <input type="text" id="node-input-providerId" placeholder="Leave empty to use Client ID (recommended)">
   </div>
 </script>
 
@@ -41,7 +41,8 @@
     <dt>u-OS Config</dt>
     <dd>Connection node with host/port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
-    <dd>Defaults to <code>nodered</code>; change it if you want to publish under another provider name.</dd>
+    <dd>The unique ID for this provider. If left **empty**, it uses the <strong>Client Name</strong> from the u-OS Config.</dd>
+    <dd><em>Recommendation:</em> Leave empty or use your Client ID to avoid permission errors.</dd>
   </dl>
   <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{

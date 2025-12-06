@@ -63,7 +63,7 @@ module.exports = function (RED) {
       this.error('Please select a u-OS config node.');
       return;
     }
-    this.providerId = config.providerId || 'nodered';
+    this.providerId = config.providerId || connection.clientName || 'nodered';
 
     const defMap = new Map();
     const definitions = [];
