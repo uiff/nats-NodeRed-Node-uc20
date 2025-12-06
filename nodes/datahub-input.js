@@ -142,7 +142,7 @@ module.exports = function (RED) {
           try {
             // Strategy 1: Direct Provider Query (Standard for many providers)
             this.warn(`Attempting NATS Discovery (Direct) for ${this.providerId}...`);
-            const defMsg = await nc.request(subjects.readProviderDefinitionQuery(this.providerId), new Uint8Array(0), { timeout: 1000 });
+            const defMsg = await nc.request(subjects.readProviderDefinitionQuery(this.providerId), payloads.buildReadProviderDefinitionQuery(), { timeout: 1000 });
             const defs = payloads.decodeProviderDefinition(defMsg.data);
             this.warn(`NATS Direct Discovery: Loaded ${defs.length} variables.`);
             defs.forEach((def) => defMap.set(def.id, def));
@@ -151,7 +151,7 @@ module.exports = function (RED) {
             try {
               this.warn(`NATS Direct failed (${firstErr.message}), trying Registry Discovery...`);
               // Note: 'registryProviderQuery' accesses the central registry which might proxy the definition
-              const regMsg = await nc.request(subjects.registryProviderQuery(this.providerId), new Uint8Array(0), { timeout: 2000 });
+              const regMsg = await nc.request(subjects.registryProviderQuery(this.providerId), payloads.buildReadProviderDefinitionQuery(), { timeout: 2000 });
               const defs = payloads.decodeProviderDefinition(regMsg.data);
               this.warn(`NATS Registry Discovery: Loaded ${defs.length} variables.`);
               defs.forEach((def) => defMap.set(def.id, def));
