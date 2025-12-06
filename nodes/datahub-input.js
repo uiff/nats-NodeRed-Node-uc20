@@ -140,17 +140,24 @@ module.exports = function (RED) {
         // Retry Definition Fetch via NATS if Map is empty AND no manual defs
         if (defMap.size === 0 && this.manualDefs.length === 0) {
           try {
-            this.warn(`Attempting to fetch definitions via NATS for ${this.providerId}...`);
-            const defMsg = await nc.request(`v1.loc.${this.providerId}.def.qry.read`, new Uint8Array(0), { timeout: 2000 });
-            // We need to decode this manually or use a helper
-            // Importing payloads to use our new decode function
-            // Assuming payloads is already loaded above
-
+            // Strategy 1: Direct Provider Query (Standard for many providers)
+            this.warn(`Attempting NATS Discovery (Direct) for ${this.providerId}...`);
+            const defMsg = await nc.request(subjects.readProviderDefinitionQuery(this.providerId), new Uint8Array(0), { timeout: 1000 });
             const defs = payloads.decodeProviderDefinition(defMsg.data);
-            this.warn(`NATS Fallback: Loaded ${defs.length} definitions.`);
+            this.warn(`NATS Direct Discovery: Loaded ${defs.length} variables.`);
             defs.forEach((def) => defMap.set(def.id, def));
-          } catch (err) {
-            this.warn(`NATS Fallback failed: ${err.message}`);
+          } catch (firstErr) {
+            // Strategy 2: Registry Query (Central lookup, often requires different perms or used by Hub)
+            try {
+              this.warn(`NATS Direct failed (${firstErr.message}), trying Registry Discovery...`);
+              // Note: 'registryProviderQuery' accesses the central registry which might proxy the definition
+              const regMsg = await nc.request(subjects.registryProviderQuery(this.providerId), new Uint8Array(0), { timeout: 2000 });
+              const defs = payloads.decodeProviderDefinition(regMsg.data);
+              this.warn(`NATS Registry Discovery: Loaded ${defs.length} variables.`);
+              defs.forEach((def) => defMap.set(def.id, def));
+            } catch (secondErr) {
+              this.warn(`All Discovery methods failed (REST, NATS Direct, NATS Registry). Please use Manual Definitions (Name:ID). Error: ${secondErr.message}`);
+            }
           }
         }
 
