@@ -332,10 +332,23 @@
     <dt>u-OS Config</dt>
     <dd>Pick the connection node that holds host, port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
-    <dd>Provider to read. The drop-down lists every provider returned by the Control Center REST API.</dd>
-    <dt>Variables</dt>
-    <dd>Select one or more variable keys (single/multi-select). Leave unselected to stream all variables from the provider.</dd>
+    <dd>Provider to read. The drop-down lists every provider returned by the  <p><strong>Attributes:</strong></p>
+  <dl>
+    <dt>Polling (ms)</dt>
+    <dd>
+      <ul>
+        <li><code>0</code> (default): <strong>Event-based only</strong>. You receive updates whenever they happen.</li>
+        <li><code>> 0</code>: <strong>Hybrid Mode</strong>. You receive live Events <strong>AND</strong> the node explicitly reads all values every X milliseconds. Useful if you suspect missed events.</li>
+      </ul>
+    </dd>
+    <dt>Provider & Variables</dt>
+    <dd>Click the <strong>Refresh</strong> button to load the lists. Providers can be cached, but <strong>Variables require a deployed Config Node</strong> to be loaded securely.</dd>
   </dl>
+  <p><strong>Troubleshooting:</strong></p>
+  <ul>
+      <li><strong>Empty Variable List:</strong> Ensure the Config Node is <strong>DEPLOYED</strong>. The "Test Connection" button only checks basic connectivity, but reading variable schemas requires a running flow.</li>
+      <li><strong>Permission Information:</strong> If you don't see a specific provider, your OAuth Client might lack read permissions for it.</li>
+  </ul>
   <p>Each message has <code>msg.payload</code> shaped like:</p>
 <pre>{
   "type": "snapshot" | "change",

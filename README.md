@@ -4,9 +4,9 @@
 
 Node-RED nodes to read and write u-OS Data Hub variables via NATS. This package exposes three building blocks:
 
-1. **u-OS Config** – stores host, OAuth client credentials and manages the shared NATS connection.
-2. **DataHub Input** – subscribes to an existing provider and emits JSON messages. Enter the provider ID and optional comma-separated variable names.
-3. **DataHub Output** – automatically registers a provider (default `nodered`), flattens incoming JSON structures and publishes them to the Data Hub.
+1. **u-OS Config** – stores host, OAuth client credentials and manages the shared NATS connection. Includes a **Test Connection** button for immediate feedback.
+2. **DataHub Input** – subscribes to an existing provider and emits JSON messages. Supports both **Event-based** and **Polling** updates.
+3. **DataHub Output** – automatically registers a provider (defaults to your Client Name/ID), flattens incoming JSON structures and publishes them to the Data Hub.
 
 The nodes reuse the FlatBuffer helpers from the standalone Node sample, so they speak the native NATS API.
 
@@ -38,13 +38,18 @@ The config node automatically fetches tokens via Client Credentials flow.
 
 ## DataHub Input Node
 
-- Select the u-OS config node, then choose one of the discovered providers from the dropdown. 
-- **Troubleshooting**: If the dropdown remains empty, check the Node-RED debug tab. The node logs the API response count. Ensure your OAuth client has `hub.variables.readonly` permission.
-- Pick the variables you need from the multi-select list. Leave it empty to receive all variables.
+- Select the u-OS config node.
+- **Providers**: Click the **Refresh** button to list available providers. This list can be cached from the "Test Connection" button in the Config Node.
+- **Variables**: Select a provider, then click *Refresh* to load its variables. **Note:** To load variables, the Config Node **must be deployed** first!
+- **Polling (ms)**:
+  - `0`: **Events only**. Efficient and fast.
+  - `> 0`: **Hybrid Mode**. Receives events **AND** polls values every X ms.
+- **Troubleshooting**: If lists remain empty, check the Node-RED debug tab. Ensure your OAuth client has `hub.variables.readonly` permission.
 
 ## DataHub Output Node
 
-- Reuses the u-OS config node. The provider ID defaults to `nodered` and is created automatically upon the first message.
+- Reuses the u-OS config node.
+- **Provider ID**: Leave this field **EMPTY** (recommended) to automatically use the **Client Name** defined in your u-OS Config. This ensures your permissions always match.
 - Send a JSON object to the input pin. **Nested objects are supported** and create subcategories automatically:
   ```json
   {
