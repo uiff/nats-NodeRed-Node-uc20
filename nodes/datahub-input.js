@@ -58,6 +58,16 @@ module.exports = function (RED) {
     let closed = false;
     const defMap = new Map();
 
+    // Fix: Add manual keys to the filter list (this.variables) so they act as whitelist
+    if (this.manualDefs.length > 0) {
+      this.manualDefs.forEach(d => {
+        const needle = normalizeKey(d.key);
+        if (needle && !this.variables.includes(needle)) {
+          this.variables.push(needle);
+        }
+      });
+    }
+
     // Pre-populate raw map with manual definitions
     this.manualDefs.forEach(d => defMap.set(d.id, { ...d, type: 'MANUAL', dataType: 'UNKNOWN', access: 'READ_ONLY' }));
 
