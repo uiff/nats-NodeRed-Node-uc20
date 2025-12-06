@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { connect } = require('nats');
+const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly';
 
 if (!process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -13,7 +14,7 @@ module.exports = function (RED) {
     this.host = config.host || '127.0.0.1';
     this.port = Number(config.port) || 49360;
     this.clientName = config.clientName || 'nodered';
-    this.scope = config.scope || 'hub.variables.provide hub.variables.readwrite';
+    this.scope = DEFAULT_SCOPE;
     this.clientId = this.credentials.clientId;
     this.clientSecret = this.credentials.clientSecret;
     this.tokenInfo = null;
