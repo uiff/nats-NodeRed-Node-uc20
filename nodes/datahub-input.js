@@ -27,9 +27,9 @@ module.exports = function (RED) {
     }
 
     this.providerId = config.providerId || 'sampleprovider';
-    this.providerId = config.providerId || 'sampleprovider';
-    this.pollingInterval = parseInt(config.pollingInterval, 10) || 0; // ms
     this.mode = config.mode || 'auto';
+    this.triggerMode = config.triggerMode || 'event';
+    this.pollingInterval = this.triggerMode === 'poll' ? (parseInt(config.pollingInterval, 10) || 1000) : 0;
 
     const text = config.variablesText || '';
     const manualText = config.manualVariables || '';
