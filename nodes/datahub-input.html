@@ -70,8 +70,8 @@
       const variableLabel = (variable) => variable.tagName || variable.key || variable.name || variable.path || variable.id || 'Unnamed variable';
 
       const syncVariablesField = () => {
-        const values = $variables.val() || [];
-        $variablesHidden.val(values.join(','));
+        // For checkboxes, we update the hidden field directly on change.
+        // This helper is kept if needed for initial loading but usually not needed.
       };
 
       let providerRequest = 0;
@@ -101,43 +101,54 @@
       const loadVariables = (providerId, keepSelection = false) => {
         const configId = $config.val();
         if (!configId || !providerId) {
-          $variables.empty();
+          $variablesContainer.empty().append('<div style="color:#aaa; font-style:italic; padding:5px;">Select a provider to load variables...</div>');
           setVariableStatus('Select a provider to load variables.');
           return;
         }
         const seq = ++variableRequest;
         setVariableStatus('Loading variables…');
-        $variables.prop('disabled', true);
+
         $.getJSON(`uos/providers/${configId}/${encodeURIComponent(providerId)}/variables`)
           .done((payload) => {
-            if (seq !== variableRequest) {
-              return;
-            }
+            if (seq !== variableRequest) return;
+
             const vars = normalizeVariables(payload);
-            $variables.empty();
+            $variablesContainer.empty();
             if (!vars.length) {
               setVariableStatus('No variables returned. Check Data Hub permissions.');
-              $variables.prop('disabled', true);
+              $variablesContainer.append('<div style="color:#aaa; padding:5px;">No variables found.</div>');
               syncVariablesField();
               return;
             }
+
+            const preset = keepSelection ? ($variablesHidden.val() || '').split(',').map(e => e.trim()).filter(Boolean) : initialVars;
+            const currentSet = new Set(preset);
+
             vars.forEach((variable) => {
               const value = variableValue(variable);
-              if (!value) {
-                return;
-              }
-              const option = $('<option></option>')
-                .attr('value', value)
-                .text(variableLabel(variable));
-              $variables.append(option);
+              if (!value) return;
+
+              const isChecked = currentSet.has(value) ? 'checked' : '';
+              // Create checkbox row
+              const row = $(`<div style="display:flex; align-items:center; margin-bottom:2px;">
+                 <input type="checkbox" id="uv-${seq}-${value}" value="${value}" ${isChecked} style="width:auto; margin:0 5px 0 0;">
+                 <label for="uv-${seq}-${value}" style="width:auto; margin-bottom:0; cursor:pointer;">${variableLabel(variable)}</label>
+              </div>`);
+
+              $variablesContainer.append(row);
             });
-            $variables.prop('disabled', false);
-            const preset = keepSelection ? ($variablesHidden.val() || '').split(',').map((entry) => entry.trim()).filter(Boolean) : initialVars;
-            if (preset.length) {
-              $variables.val(preset);
-            }
+
+            // Re-bind change events for new checkboxes
+            $variablesContainer.find('input[type="checkbox"]').on('change', () => {
+              const selected = [];
+              $variablesContainer.find('input[type="checkbox"]:checked').each(function () {
+                selected.push($(this).val());
+              });
+              $variablesHidden.val(selected.join(','));
+            });
+
             syncVariablesField();
-            setVariableStatus('Select one or multiple variables (Ctrl/Cmd + click). Leave empty to receive all.');
+            setVariableStatus('Select variables. Leave all unchecked to receive EVERYTHING.');
           })
           .fail((xhr) => {
             console.error('Variable load failed', xhr);
@@ -148,7 +159,6 @@
             }
             setVariableStatus(msg);
             $variablesContainer.empty().append('<div style="color:#aaa; font-style:italic; padding:5px;">To load variables, the Config Node must be deployed first.</div>');
-            $variables.prop('disabled', true);
             syncVariablesField();
           });
       };
