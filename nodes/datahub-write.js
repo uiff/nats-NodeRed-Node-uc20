@@ -56,6 +56,7 @@ module.exports = function (RED) {
     function DataHubWriteNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
+        // console.log('DataHub Write Node initialized');
 
         // Get config node
         const configNode = RED.nodes.getNode(config.connection);
