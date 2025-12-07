@@ -5,7 +5,7 @@
     defaults: {
       host: { value: '127.0.0.1', required: true },
       port: { value: 49360, required: true, validate: RED.validators.number() },
-      clientName: { value: 'nodered', required: true },
+      clientName: { value: '', required: true }, // No default, required
       scope: { value: FIXED_SCOPE, required: true },
     },
     credentials: {
@@ -21,6 +21,10 @@
       const $scopeDisplay = $('#uos-scope-display');
       const $scopeSpinner = $('#uos-scope-spinner');
       const $refresh = $('#uos-scope-refresh');
+
+      // Ensure red border for empty required fields is handled by Node-RED standard 'required: true'
+      // but we removed the default value for clientName so it starts empty.
+
       const updateDisplay = (text, cls = '') => {
         $scopeDisplay.text(text);
         $scopeDisplay.removeClass('form-tips-warning form-tips-error');
@@ -68,6 +72,9 @@
         const port = $('#node-config-input-port').val();
         const clientId = $('#node-config-input-clientId').val();
         const clientSecret = $('#node-config-input-clientSecret').val();
+
+        // Show the status box
+        $testStatus.show();
 
         if (!host || !clientId || !clientSecret) {
           $testStatus.html('<span style="color:var(--red-ui-text-color-error)"><i class="fa fa-exclamation-triangle"></i> Please fill Host, Client ID and Secret</span>');
@@ -137,7 +144,8 @@
      <button class="red-ui-button" id="uos-config-test-connection" type="button" style="width:100%">
        <i class="fa fa-plug"></i> Test Connection & List Providers
      </button>
-     <div id="uos-test-status" class="form-tips" style="margin-top:5px;"></div>
+     <!-- Initially hidden, only shown after click. Same width behavior inherited from container logic. -->
+     <div id="uos-test-status" class="form-tips" style="margin-top:5px; display:none;"></div>
   </div>
 </script>
 
