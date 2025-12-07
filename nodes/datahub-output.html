@@ -10,7 +10,31 @@
     inputs: 1,
     outputs: 1,
     icon: "datahub-provider.svg",
-    oneditprepare: function () { },
+    oneditprepare: function () {
+      const updateProviderIdInfo = () => {
+        const configId = $('#node-input-connection').val();
+        const configNode = RED.nodes.node(configId);
+        const $provId = $('#node-input-providerId');
+
+        if (configNode && configNode.clientName) {
+          // User wants to see it "greyed out" -> Placeholder is best, or disabled?
+          // "desweiteren in der Hilfe erwähnen, das Provider ID vom Client Name übernommen wird"
+          // "du kannst ja das fenster ausgegraut lassen"
+
+          // If the field is empty, show the clientName as placeholder/visual
+          $provId.attr('placeholder', `Default: ${configNode.clientName}`);
+
+          // Show a helper message
+          $('#provider-id-helper').text(`Using Client ID from '${configNode.clientName}' (default)`);
+        } else {
+          $provId.attr('placeholder', 'Leave empty to use Client ID');
+          $('#provider-id-helper').text('');
+        }
+      };
+
+      $('#node-input-connection').on('change', updateProviderIdInfo);
+      updateProviderIdInfo();
+    },
     label: function () {
       return this.name || `DataHub - Provider ${this.providerId || ''}`;
     },
@@ -34,6 +58,7 @@
     <label for="node-input-providerId"><i class="fa fa-tag"></i> Provider ID</label>
     <input type="text" id="node-input-providerId" placeholder="Leave empty to use Client ID">
   </div>
+  <div class="form-tips" id="provider-id-helper" style="margin-bottom:10px; color:#888;"></div>
 </script>
 
 <script type="text/html" data-help-name="datahub-output">
@@ -42,8 +67,8 @@
     <dt>u-OS Config</dt>
     <dd>Connection node with host/port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
-    <dd>The unique ID for this provider. If left <b>empty</b>, it automatically uses the Client ID from the Config node.</dd>
-    <dd><em>Recommendation:</em> Leave empty! This ensures your Provider ID always matches your Client ID, avoiding "Permission Denied" errors and invisible providers.</dd>
+    <dd>The unique ID for this provider. If left <b>empty</b>, it uses the <strong>Client ID</strong> (associated with the configured <em>Client Name</em>).</dd>
+    <dd><em>UI Note:</em> The input placeholder shows the Client Name as a reference.</dd>
   </dl>
   <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{
