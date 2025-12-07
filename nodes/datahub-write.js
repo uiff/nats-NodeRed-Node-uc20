@@ -106,7 +106,7 @@ export default function (RED) {
 
             try {
                 // Get NATS connection from config node
-                const nc = await configNode.getNatsConnection();
+                const nc = await configNode.acquire();
                 if (!nc) {
                     node.error('NATS connection not available');
                     node.status({ fill: 'red', shape: 'dot', text: 'no connection' });
@@ -153,6 +153,9 @@ export default function (RED) {
         });
 
         node.on('close', function () {
+            if (configNode) {
+                configNode.release();
+            }
             node.status({});
         });
     }
