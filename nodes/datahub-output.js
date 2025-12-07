@@ -131,7 +131,7 @@ module.exports = function (RED) {
 
       // If we have no definitions yet, nothing to send
       if (definitions.length === 0) {
-        console.log('[DataHub Output] Heartbeat skipped: No definitions.');
+        // console.log('[DataHub Output] Heartbeat skipped: No definitions.');
         return;
       }
 
@@ -142,174 +142,156 @@ module.exports = function (RED) {
         stateObj[s.id] = s;
       }
       try {
-        const payload = loadedPayloads.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
+        sendValuesUpdate();
+      }, 1000); // 1.0s interval matches Python SDK
 
-        // Debug: Log complete HEX dump to verify flatbuffer structure
-        const hex = Buffer.from(payload).toString('hex');
+      const start = async () => {
+        try {
+          console.log('[DataHub Output] Starting...');
+          this.status({ fill: 'yellow', shape: 'ring', text: 'connecting…' });
+          const [payloads, subjects] = await loadModules();
+          console.log('[DataHub Output] Modules loaded.');
+          loadedPayloads = payloads;
+          loadedSubjects = subjects;
 
-        const subject = loadedSubjects.varsChangedEvent(this.providerId);
-        console.log(`[DataHub Output] Sending Heartbeat to '${subject}'`);
-        console.log(`[DataHub Output] Packet HEX (${payload.length} bytes): ${hex}`);
+          nc = await connection.acquire();
+          console.log('[DataHub Output] NATS acquired.');
 
-        await nc.publish(subject, payload);
-        await nc.flush(); // Ensure NATS accepts the packet (catches Permission Errors)
-        console.log(`[DataHub Output] Heartbeat sent. State count: ${Object.keys(stateObj).length}`);
-      } catch (err) {
-        this.warn(`Heartbeat error: ${err.message}`);
-      }
-    };
+          await sendDefinitionUpdate(payloads, subjects);
 
-    const valueHeartbeat = setInterval(() => {
-      sendValuesUpdate();
-    }, 1000); // 1.0s interval matches Python SDK
-
-    const start = async () => {
-      try {
-        console.log('[DataHub Output] Starting...');
-        this.status({ fill: 'yellow', shape: 'ring', text: 'connecting…' });
-        const [payloads, subjects] = await loadModules();
-        console.log('[DataHub Output] Modules loaded.');
-        loadedPayloads = payloads;
-        loadedSubjects = subjects;
-
-        nc = await connection.acquire();
-        console.log('[DataHub Output] NATS acquired.');
-
-        await sendDefinitionUpdate(payloads, subjects);
-
-        // Listen for Variable READ requests
-        sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
-          callback: (err, msg) => {
-            if (err) {
-              this.warn(`Read request error: ${err.message}`);
-              return;
-            }
-            handleRead(payloads, msg).catch((error) => this.warn(error.message));
-          },
-        });
-        console.log('[DataHub Output] Subscribed to Read Query.');
-
-        // Listen for Definition READ requests (Discovery)
-        // SKIPPED: Permission Violation on v1.loc.<id>.def.qry.read
-        // Data Hub seems to discover providers via initial announcement or direct variable reads.
-        /*
-        const defSub = nc.subscribe(subjects.readProviderDefinitionQuery(this.providerId), {
-          callback: (err, msg) => {
-            if (err) {
-              this.warn(`Def request error: ${err.message}`);
-              return;
-            }
-            if (!msg.reply) return;
-
-            // Send known definition
-            const { payload } = payloads.buildProviderDefinitionEvent(definitions);
-            nc.publish(msg.reply, payload);
-          }
-        });
-        */
-
-        // Track the subscription to close it later if needed (though existing code only tracks 'sub')
-        // Ideally we should track both or use a subscription manager, but for now let's hope 'sub' isn't the only one closed.
-        // Actually, looking at close(), it likely calls connection.release(). NATS connection close cleans up subs.
-
-        this.status({ fill: 'green', shape: 'dot', text: 'ready' });
-
-        // Heartbeat Removed: Periodic republishing causes UI flickering/refresh in DataHub.
-        // The definition should only be sent on start or when it actually changes.
-        /*
-        const outputHeartbeat = setInterval(() => {
-          if (nc && !nc.isClosed()) {
-            sendDefinitionUpdate(payloads, subjects).catch(err => {
-              this.warn(`Heartbeat error: ${err.message}`);
-            });
-          }
-        }, 10000); // Every 10 seconds
-        */
-
-        this.on('input', async (msg, send, done) => {
-          try {
-            // Auto-parse string payloads
-            if (typeof msg.payload === 'string') {
-              try {
-                msg.payload = JSON.parse(msg.payload);
-              } catch (e) {
-                // Ignore parse error, let validation below handle it
+          // Listen for Variable READ requests
+          sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
+            callback: (err, msg) => {
+              if (err) {
+                this.warn(`Read request error: ${err.message}`);
+                return;
               }
-            }
+              handleRead(payloads, msg).catch((error) => this.warn(error.message));
+            },
+          });
+          console.log('[DataHub Output] Subscribed to Read Query.');
 
-            if (!msg || !msg.payload || typeof msg.payload !== 'object') {
-              done(new Error('Payload must be an object describing your structure.'));
-              return;
+          // Listen for Definition READ requests (Discovery)
+          // SKIPPED: Permission Violation on v1.loc.<id>.def.qry.read
+          // Data Hub seems to discover providers via initial announcement or direct variable reads.
+          /*
+          const defSub = nc.subscribe(subjects.readProviderDefinitionQuery(this.providerId), {
+            callback: (err, msg) => {
+              if (err) {
+                this.warn(`Def request error: ${err.message}`);
+                return;
+              }
+              if (!msg.reply) return;
+  
+              // Send known definition
+              const { payload } = payloads.buildProviderDefinitionEvent(definitions);
+              nc.publish(msg.reply, payload);
             }
-            const entries = flattenPayload(msg.payload);
+          });
+          */
 
-            // Optimization: If payload is empty after flattening (e.g. only undefined values), stop here
-            if (!entries.length) {
+          // Track the subscription to close it later if needed (though existing code only tracks 'sub')
+          // Ideally we should track both or use a subscription manager, but for now let's hope 'sub' isn't the only one closed.
+          // Actually, looking at close(), it likely calls connection.release(). NATS connection close cleans up subs.
+
+          this.status({ fill: 'green', shape: 'dot', text: 'ready' });
+
+          // Heartbeat Removed: Periodic republishing causes UI flickering/refresh in DataHub.
+          // The definition should only be sent on start or when it actually changes.
+          /*
+          const outputHeartbeat = setInterval(() => {
+            if (nc && !nc.isClosed()) {
+              sendDefinitionUpdate(payloads, subjects).catch(err => {
+                this.warn(`Heartbeat error: ${err.message}`);
+              });
+            }
+          }, 10000); // Every 10 seconds
+          */
+
+          this.on('input', async (msg, send, done) => {
+            try {
+              // Auto-parse string payloads
+              if (typeof msg.payload === 'string') {
+                try {
+                  msg.payload = JSON.parse(msg.payload);
+                } catch (e) {
+                  // Ignore parse error, let validation below handle it
+                }
+              }
+
+              if (!msg || !msg.payload || typeof msg.payload !== 'object') {
+                done(new Error('Payload must be an object describing your structure.'));
+                return;
+              }
+              const entries = flattenPayload(msg.payload);
+
+              // Optimization: If payload is empty after flattening (e.g. only undefined values), stop here
+              if (!entries.length) {
+                done();
+                return;
+              }
+
+              let definitionsChanged = false;
+              const states = [];
+
+              entries.forEach(({ key, value }) => {
+                // Ensure we don't accidentally send undefined/null as value if logic slipped through
+                if (value === undefined || value === null) return;
+
+                const { def, created } = ensureDefinition(key, inferType(value));
+                if (created) {
+                  definitionsChanged = true;
+                }
+                const state = {
+                  id: def.id,
+                  value,
+                  timestamp: BigInt(Date.now()) * 1_000_000n,
+                  quality: 'GOOD',
+                };
+                // states.push(state); // No longer pushing to a temporary 'states' array
+                stateMap.set(def.id, state); // Update the global stateMap
+              });
+
+              if (definitionsChanged) {
+                // If definition changed, we MUST publish definition first
+                await sendDefinitionUpdate(loadedPayloads, loadedSubjects);
+                await new Promise(r => setTimeout(r, 200));
+              }
+
+              // Publish values immediately on input (don't wait for heartbeat)
+              await sendValuesUpdate();
+
+              send(msg);
               done();
-              return;
             }
-
-            let definitionsChanged = false;
-            const states = [];
-
-            entries.forEach(({ key, value }) => {
-              // Ensure we don't accidentally send undefined/null as value if logic slipped through
-              if (value === undefined || value === null) return;
-
-              const { def, created } = ensureDefinition(key, inferType(value));
-              if (created) {
-                definitionsChanged = true;
-              }
-              const state = {
-                id: def.id,
-                value,
-                timestamp: BigInt(Date.now()) * 1_000_000n,
-                quality: 'GOOD',
-              };
-              // states.push(state); // No longer pushing to a temporary 'states' array
-              stateMap.set(def.id, state); // Update the global stateMap
-            });
-
-            if (definitionsChanged) {
-              // If definition changed, we MUST publish definition first
-              await sendDefinitionUpdate(loadedPayloads, loadedSubjects);
-              await new Promise(r => setTimeout(r, 200));
+            catch (err) {
+              done(err);
             }
-
-            // Publish values immediately on input (don't wait for heartbeat)
-            await sendValuesUpdate();
-
-            send(msg);
-            done();
-          }
-          catch (err) {
-            done(err);
-          }
-        });
-      }
-      catch (err) {
-        this.status({ fill: 'red', shape: 'ring', text: err.message });
-        this.error(err.message);
-      }
-    };
-
-    start();
-
-    this.on('close', async (done) => {
-      try {
-        if (valueHeartbeat) clearInterval(valueHeartbeat);
-        if (sub) {
-          await sub.drain();
+          });
         }
-        // if (outputHeartbeat) clearInterval(outputHeartbeat);
-        await connection.release();
-      }
-      catch (err) {
-        this.warn(`closing error: ${err.message}`);
-      }
-      done();
-    });
-  }
+        catch (err) {
+          this.status({ fill: 'red', shape: 'ring', text: err.message });
+          this.error(err.message);
+        }
+      };
 
-  RED.nodes.registerType('datahub-output', DataHubOutputNode);
-};
+      start();
+
+      this.on('close', async (done) => {
+        try {
+          if (valueHeartbeat) clearInterval(valueHeartbeat);
+          if (sub) {
+            await sub.drain();
+          }
+          // if (outputHeartbeat) clearInterval(outputHeartbeat);
+          await connection.release();
+        }
+        catch (err) {
+          this.warn(`closing error: ${err.message}`);
+        }
+        done();
+      });
+    }
+
+    RED.nodes.registerType('datahub-output', DataHubOutputNode);
+  };
