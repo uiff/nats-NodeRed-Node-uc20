@@ -23,7 +23,9 @@
       const $displayGroup = $('<div id="prov-id-display-group" style="display:none; align-items:center;"></div>').appendTo($wrapper);
       // Styled like a read-only input but cleaner
       const $displayText = $('<span id="prov-id-display-text" style="flex-grow:1; padding:6px; background:#f9f9f9; border:1px solid #ccc; border-radius:4px; color:#333;">nodered</span>').appendTo($displayGroup);
-      const $editBtn = $('<a class="red-ui-button" style="margin-left:5px;"><i class="fa fa-pencil"></i></a>').appendTo($displayGroup);
+
+      // User requested to remove the edit pencil ("es ist nur eine Anzeige!")
+      // const $editBtn = ... (removed)
 
       // 2. Input Mode Elements
       const $inputGroup = $('<div id="prov-id-input-group" style="display:none; align-items:center;"></div>').appendTo($wrapper);
@@ -64,13 +66,13 @@
         $displayGroup.hide();
         $inputGroup.css('display', 'flex');
         $provIdInput.focus();
-        $('#provider-id-helper').text('Custom Provider ID will be used instead of Client ID.');
+        $('#provider-id-helper').text('Custom Provider ID (Legacy Mode)');
       };
 
       // Events
-      $editBtn.on('click', function () {
-        showInput();
-      });
+      // $editBtn.on('click', function () {
+      //   showInput();
+      // }); // Removed as per user request
 
       $resetBtn.on('click', function () {
         showDisplay();
@@ -120,8 +122,8 @@
     <dd>Connection node with host/port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
     <dd>The unique ID for this provider.</dd>
-    <dd><b>Auto Mode (Default):</b> Shows the <em>Client Name</em> from your Config. Uses this name automatically.</dd>
-    <dd><b>Manual Mode:</b> Click the pencil icon to enter a custom ID manually (not recommended).</dd>
+    <dd><b>Auto Mode:</b> Shows the <em>Client Name</em> from your Config. Uses this name automatically.</dd>
+    <!-- Manual Mode only visible if previously configured -->
   </dl>
   <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{
