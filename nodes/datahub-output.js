@@ -141,7 +141,7 @@ module.exports = function (RED) {
         s.timestamp = BigInt(Date.now()) * 1_000_000n; // Force refresh timestamp
         stateObj[s.id] = s;
       }
-      try {
+      const valueHeartbeat = setInterval(() => {
         sendValuesUpdate();
       }, 1000); // 1.0s interval matches Python SDK
 
