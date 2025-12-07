@@ -177,8 +177,12 @@ module.exports = function (RED) {
             for (const s of stateMap.values()) {
               stateObj[s.id] = s;
             }
-            const payload = payloadsMod.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
-            await nc.publish(subjectsMod.varsChangedEvent(this.providerId), payload);
+            try {
+              const payload = payloadsMod.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
+              await nc.publish(subjectsMod.varsChangedEvent(this.providerId), payload);
+            } catch (err) {
+              this.error(`Encoding Error: ${err.message}. State: ${JSON.stringify(stateObj)}`);
+            }
             send(msg);
             done();
           }
