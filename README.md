@@ -9,7 +9,7 @@ Maintained by [IoTUeli](https://iotueli.ch). Source: [GitHub](https://github.com
 
 ---
 
-## 📦 Nodes Overview
+## Nodes Overview
 
 | Node | Icon | Purpose |
 |------|------|---------|
@@ -20,7 +20,7 @@ Maintained by [IoTUeli](https://iotueli.ch). Source: [GitHub](https://github.com
 
 ---
 
-## 🚀 Installation
+## Installation
 
 Run the following command in your Node-RED user directory (usually `~/.node-red`):
 
@@ -32,7 +32,7 @@ Restart Node-RED. The nodes will appear in the **"Weidmüller DataHub"** categor
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### 1. Create OAuth Client (in u-OS)
 
@@ -62,20 +62,20 @@ Import this flow to test reading and writing immediately:
 
 ---
 
-## 🔧 Node Usage
+## Node Usage
 
-### 📥 DataHub - Read
+### DataHub - Read
 Reads values from existing providers (like `u_os_adm`).
 - **Provider ID:** Name of the source provider.
 - **Variables:** Enter `Key:ID` manually.
 - **Trigger:** "Event" (instant update) or "Poll" (interval).
 
-### 📤 DataHub - Write
+### DataHub - Write
 Changes values in other providers.
 - **Input:** Send `msg.payload` with the new value.
 - **Config:** Target `Provider ID` and `Variable ID` (or Key).
 
-### 📡 DataHub - Provider
+### DataHub - Provider
 Publishes your own data to the Data Hub.
 - **Provider ID:** Leave empty to use your Client ID (Recommended).
 - **Input:** Send a JSON object: `{ "machine": { "status": "active" } }`.
@@ -83,7 +83,7 @@ Publishes your own data to the Data Hub.
 
 ---
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
 - **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.
 - **Connection Failed?** Check Host/IP and ensure Client ID/Secret are correct.
