@@ -156,7 +156,9 @@ module.exports = function (RED) {
 
         this.status({ fill: 'green', shape: 'dot', text: 'ready' });
 
-        // Periodically republish definition to ensure visibility (Heartbeat)
+        // Heartbeat Removed: Periodic republishing causes UI flickering/refresh in DataHub.
+        // The definition should only be sent on start or when it actually changes.
+        /*
         const outputHeartbeat = setInterval(() => {
           if (nc && !nc.isClosed()) {
             sendDefinitionUpdate(payloads, subjects).catch(err => {
@@ -164,6 +166,7 @@ module.exports = function (RED) {
             });
           }
         }, 10000); // Every 10 seconds
+        */
 
         this.on('input', async (msg, send, done) => {
           try {
@@ -247,7 +250,7 @@ module.exports = function (RED) {
         if (sub) {
           await sub.drain();
         }
-        if (outputHeartbeat) clearInterval(outputHeartbeat);
+        // if (outputHeartbeat) clearInterval(outputHeartbeat);
         await connection.release();
       }
       catch (err) {
