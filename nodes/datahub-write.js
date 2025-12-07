@@ -24,7 +24,7 @@ module.exports = function (RED) {
         // Query provider definition
         try {
             const query = payloads.buildReadProviderDefinitionQuery();
-            const subject = `v1.loc.${providerId}.def.query`;
+            const subject = `v1.loc.registry.providers.${providerId}.def.qry.read`;
 
             const response = await nc.request(subject, query, { timeout: 3000 });
             const definition = payloads.decodeProviderDefinition(response.data);
@@ -211,7 +211,7 @@ module.exports = function (RED) {
                 const payloads = await import(payloadModuleUrl);
 
                 const query = payloads.buildReadProviderDefinitionQuery();
-                const subject = `v1.loc.${providerId}.def.qry.read`; // Hardcoded subject pattern from rules
+                const subject = `v1.loc.registry.providers.${providerId}.def.qry.read`;
 
                 // Request with timeout
                 const response = await nc.request(subject, query, { timeout: 3000 });
