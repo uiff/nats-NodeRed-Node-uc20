@@ -96,9 +96,11 @@ module.exports = function (RED) {
     };
 
     const sendDefinitionUpdate = async (payloads, subjects) => {
+      console.log(`[DataHub Output] Publishing definition with ${definitions.length} vars...`);
       const { payload, fingerprint: fp } = payloads.buildProviderDefinitionEvent(definitions);
       fingerprint = fp;
       await nc.publish(subjects.providerDefinitionChanged(this.providerId), payload);
+      console.log(`[DataHub Output] Definition published. FP: ${fp}`);
     };
 
     const handleRead = async (payloads, msg) => {
@@ -119,7 +121,8 @@ module.exports = function (RED) {
     let loadedSubjects = null;
 
     const sendValuesUpdate = async () => {
-      if (!nc || nc.isClosed() || !loadedPayloads || !loadedSubjects) return;
+      if (!nc || nc.isClosed()) return;
+      if (!loadedPayloads || !loadedSubjects) return;
 
       // If we have no definitions yet, nothing to send
       if (definitions.length === 0) return;
@@ -131,9 +134,9 @@ module.exports = function (RED) {
       try {
         const payload = loadedPayloads.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
         await nc.publish(loadedSubjects.varsChangedEvent(this.providerId), payload);
+        // console.log(`[DataHub Output] Heartbeat sent. State count: ${Object.keys(stateObj).length}`);
       } catch (err) {
-        // Silent catch for heartbeat to avoid log spam, or simple warn
-        // this.warn(`Heartbeat encode error: ${err.message}`);
+        this.warn(`Heartbeat error: ${err.message}`);
       }
     };
 
@@ -143,12 +146,16 @@ module.exports = function (RED) {
 
     const start = async () => {
       try {
+        console.log('[DataHub Output] Starting...');
         this.status({ fill: 'yellow', shape: 'ring', text: 'connecting…' });
         const [payloads, subjects] = await loadModules();
+        console.log('[DataHub Output] Modules loaded.');
         loadedPayloads = payloads;
         loadedSubjects = subjects;
 
         nc = await connection.acquire();
+        console.log('[DataHub Output] NATS acquired.');
+
         await sendDefinitionUpdate(payloads, subjects);
 
         // Listen for Variable READ requests
@@ -161,6 +168,7 @@ module.exports = function (RED) {
             handleRead(payloads, msg).catch((error) => this.warn(error.message));
           },
         });
+        console.log('[DataHub Output] Subscribed to Read Query.');
 
         // Listen for Definition READ requests (Discovery)
         // SKIPPED: Permission Violation on v1.loc.<id>.def.qry.read
