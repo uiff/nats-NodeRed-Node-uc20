@@ -132,6 +132,9 @@ module.exports = function (RED) {
         });
 
         // Listen for Definition READ requests (Discovery)
+        // SKIPPED: Permission Violation on v1.loc.<id>.def.qry.read
+        // Data Hub seems to discover providers via initial announcement or direct variable reads.
+        /*
         const defSub = nc.subscribe(subjects.readProviderDefinitionQuery(this.providerId), {
           callback: (err, msg) => {
             if (err) {
@@ -145,6 +148,7 @@ module.exports = function (RED) {
             nc.publish(msg.reply, payload);
           }
         });
+        */
 
         // Track the subscription to close it later if needed (though existing code only tracks 'sub')
         // Ideally we should track both or use a subscription manager, but for now let's hope 'sub' isn't the only one closed.
