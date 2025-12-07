@@ -1,465 +1,93 @@
 # node-red-contrib-uos-nats
 
-**Unofficial Node-RED Package for u-OS Data Hub**
+**Unofficial Node-RED Package for Weidmüller u-OS Data Hub**
 
-Built and maintained by [IoTUeli](https://iotueli.ch). This is **not** an official Weidmüller product.  
-Repository: <https://github.com/uiff/nats-NodeRed-Node-uc20>
+Read, write, and provide variables via NATS protocol using **OAuth2 authentication**.
+Optimized for high performance and real-time updates.
 
----
-
-## What is this?
-
-Node-RED nodes to **read**, **write**, and **provide** variables for the **Weidmüller u-OS Data Hub** via NATS protocol.
-
-### The Four Nodes
-
-1. **u-OS Config** – Connection settings (Host, OAuth credentials, NATS connection)
-2. **DataHub - Read** – Read variables from Data Hub providers
-3. **DataHub - Provider** – Create your own provider (publish variables)
-4. **DataHub - Write** – Send write commands to other providers
+Maintained by [IoTUeli](https://iotueli.ch). Source: [GitHub](https://github.com/uiff/nats-NodeRed-Node-uc20)
 
 ---
 
-## Installation
+## 📦 Nodes Overview
 
-### From npm (Recommended)
+| Node | Icon | Purpose |
+|------|------|---------|
+| **u-OS Config** | ⚙️ | Central configuration for NATS connection and OAuth credentials. |
+| **DataHub - Read** | 📥 | Subscribe to variable changes from system providers (e.g. `u_os_adm`). |
+| **DataHub - Write** | 📤 | Send commands to change variables in other providers. |
+| **DataHub - Provider** | 📡 | Create your own provider to publish variables to the Data Hub. |
+
+---
+
+## 🚀 Installation
+
+Run the following command in your Node-RED user directory (usually `~/.node-red`):
+
 ```bash
-cd ~/.node-red
 npm install node-red-contrib-uos-nats
 ```
 
-### From Local Folder (Development)
-```bash
-npm install /path/to/NATS-NodeRED
-```
-
-Restart Node-RED. The nodes appear in the **"u-OS DataHub NATS"** category in the palette.
+Restart Node-RED. The nodes will appear in the **"Weidmüller DataHub"** category.
 
 ---
 
-## What's New in v0.2.6 (Critical Fixes)
-- **FIXED:** `Snapshot failed: ts.value is not a function` error in Read node.
-- **FIXED:** Invalid timestamp encoding in Provider node (Seconds/Nanoseconds mismatch).
-- **FIXED:** Label and Category logic for all nodes.
+## ⚡ Quick Start
 
-## What's New in v0.2.0
+### 1. Create OAuth Client (in u-OS)
 
-### 🎯 Variable Key Support
-Write Node now supports **Variable Keys** (e.g., `machine.temp`) in addition to numeric IDs!
-- Automatic Key→ID resolution via provider definition query
-- Cached for performance (5 min TTL)
-- More user-friendly than remembering IDs
+1. Open **u-OS Web UI** (Control Center → Identity & access → Clients).
+2. Click **Add client**.
+3. Name: `nodered` (example).
+4. Scopes: Select **all** `hub.variables.*` scopes.
+5. Copy **Client ID** and **Client Secret**.
 
-### 🎨 Custom Icons
-Each node now has a unique, meaningful icon:
-- **Read:** Database with down arrow (data out)
-- **Provider:** Broadcast antenna (publishing)
-- **Write:** Database with up arrow (commands in)
+### 2. Configure Node-RED
 
-### 📦 Example Flows
-Ready-to-import example flows included in `examples/` directory:
-- `basic-read-write.json` - Getting started with Read & Write
-- `advanced-provider.json` - Creating your own provider
+1. Drag a **DataHub - Read** node to the canvas.
+2. Click the pencil ✏️ next to **Connection**.
+3. Enter:
+   - **Host:** IP of your u-OS device (e.g. `192.168.10.100`)
+   - **Client ID / Secret:** Paste from Step 1.
+4. Click **Connect**.
 
-**Import:** Node-RED menu (☰) → Import → select file from `examples/`
+### 3. Example Flow
 
----
-
-## Why NATS Instead of REST API?
-
-The u-OS Data Hub offers both **NATS** (this package) and **REST API** access. Here's why NATS is the better choice for Node-RED:
-
-### Feature Comparison
-
-| Feature | NATS Protocol | REST API |
-|---------|---------------|----------|
-| **Real-time Updates** | ✅ Event-driven (instant) | ❌ Polling required (delays) |
-| **Performance** | ✅ Binary protocol, high-throughput | ❌ HTTP/JSON overhead |
-| **Communication** | ✅ Bidirectional (Pub/Sub + Request/Reply) | ❌ Client-initiated only |
-| **Provider Registration** | ✅ Dynamic discovery & auto-registration | ❌ Static endpoints |
-| **Scalability** | ✅ Many-to-many connections | ❌ Point-to-point requests |
-| **Network Efficiency** | ✅ Push notifications (no polling waste) | ❌ Repeated GET requests |
-
-### Event-Driven Architecture
-
-**NATS enables true event-driven workflows:**
-
-```
-Sensor changes value
-       ↓
-Data Hub publishes event via NATS
-       ↓
-Node-RED receives update INSTANTLY (0ms delay)
-       ↓
-Process & forward to other systems
-```
-
-**With REST API you'd need:**
-- Constant polling (e.g., every 100ms)
-- Increased network traffic
-- Delayed reactions
-- Higher CPU usage
-
-### Use NATS when
-
-✅ You need **real-time reactions** to value changes  
-✅ You want to **create providers** (publish data to Data Hub)  
-✅ You need **event subscriptions** (get notified on changes)  
-✅ You're building **scalable industrial workflows**  
-
-### Use REST API when
-
-⚠️ You only need **occasional manual reads**  
-⚠️ You're debugging or doing one-time queries  
-⚠️ NATS port (49360) is blocked in your network  
-
----
-
-## Quick Start Guide
-
-### Step 1: Create OAuth Client in u-OS
-
-Before configuring Node-RED, create an OAuth client on your u-OS device:
-
-1. Open the **u-OS Web Interface** (e.g., `http://<YOUR_UOS_IP>`)
-2. Go to **u-OS Control Center** → **Identity & access** → **Clients**
-3. Click **"Add client"**
-4. Enter:
-   - **Name:** `nodered`
-   - **Scopes:** Select **all** `hub.variables.*` scopes:
-     - `hub.variables.provide` (for creating providers)
-     - `hub.variables.readonly` (for reading)
-     - `hub.variables.readwrite` (for writing)
-5. **Save** and copy the **Client ID** and **Client Secret**
-
-### Step 2: Configure u-OS Config Node in Node-RED
-
-1. Drag any **DataHub - IN** or **DataHub - OUT** node onto the canvas
-2. Double-click it to open settings
-3. Click the **pencil icon** next to "Config"
-4. Select **"Add new uos-config..."**
-5. Fill in:
-
-| Field | Example | Description |
-|-------|---------|-------------|
-| **Host** | `<YOUR_UOS_IP>` | IP of your u-OS device |
-| **Port** | `49360` | NATS port (default) |
-| **Client Name** | `nodered` | Unique name for this instance |
-| **Client ID** | `my-oauth-client` | From Step 1 |
-| **Client Secret** | `****************` | From Step 1 |
-
-6. Click **"Test Connection"** to verify
-7. On success, click **"Add"** then **"Done"**
-
-### Step 3: Deploy Your First Flow
-
-Import this example flow to test both reading and writing:
+Import this flow to test reading and writing immediately:
 
 ```json
-[{"id":"cdad2fa96dc6eeec","type":"datahub-input","z":"c221537c994b056a","name":"","connection":"a0ba0e15c8dad779","providerId":"u_os_adm","manualVariables":"digital_nameplate.address_information.zipcode:2","triggerMode":"poll","pollingInterval":"100","x":110,"y":40,"wires":[["315d179d66bf9b93"]]},{"id":"315d179d66bf9b93","type":"debug","z":"c221537c994b056a","name":"debug 7","active":false,"tosidebar":true,"console":false,"tostatus":false,"complete":"false","statusVal":"","statusType":"auto","x":740,"y":40,"wires":[]},{"id":"09f29f6bfc4e1be2","type":"inject","z":"c221537c994b056a","name":"","props":[{"p":"payload"},{"p":"topic","vt":"str"}],"repeat":"","crontab":"","once":false,"onceDelay":0.1,"topic":"","payload":"","payloadType":"date","x":120,"y":140,"wires":[["43b2fcf73c370f7c"]]},{"id":"43b2fcf73c370f7c","type":"function","z":"c221537c994b056a","name":"Random Data","func":"function randomBetween(min, max) {\n    return Math.random() * (max - min) + min;\n}\n\nmsg.payload = {\n    machine: {\n        status: \"running\",\n        details: {\n            temp: randomBetween(30, 80)\n        }\n    }\n};\n\nreturn msg;","outputs":1,"timeout":0,"noerr":0,"initialize":"","finalize":"","libs":[],"x":300,"y":140,"wires":[["a90304487fe19b3a"]]},{"id":"a90304487fe19b3a","type":"datahub-output","z":"c221537c994b056a","name":"","connection":"a0ba0e15c8dad779","providerId":"","x":500,"y":140,"wires":[["e53fa58e4c1987ba"]]},{"id":"e53fa58e4c1987ba","type":"debug","z":"c221537c994b056a","name":"debug 6","active":false,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","statusVal":"","statusType":"auto","x":740,"y":140,"wires":[]},{"id":"a0ba0e15c8dad779","type":"uos-config","host":"127.0.0.1","port":49360,"clientName":"hub","scope":"hub.variables.provide hub.variables.readwrite hub.variables.readonly"}]
+[{"id":"cdad2fa96dc6eeec","type":"datahub-input","z":"c221537c994b056a","name":"Read Zipcode","connection":"a0ba0e15c8dad779","providerId":"u_os_adm","manualVariables":"digital_nameplate.address_information.zipcode:2","triggerMode":"poll","pollingInterval":"1000","x":190,"y":100,"wires":[["315d179d66bf9b93"]]},{"id":"315d179d66bf9b93","type":"debug","z":"c221537c994b056a","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","statusVal":"","statusType":"auto","x":440,"y":100,"wires":[]},{"id":"a0ba0e15c8dad779","type":"uos-config","host":"127.0.0.1","port":49360,"clientName":"hub"}]
 ```
-
-**What this flow does:**
-
-**Top Row** (Reading):
-- **DataHub - IN** reads `zipcode` variable from provider `u_os_adm`
-- Polls every 100ms
-- Outputs to Debug node
-
-**Bottom Row** (Writing):
-- **Inject** node triggers data generation
-- **Function** node creates random temperature data
-- **DataHub - OUT** publishes to Data Hub as provider `hub`
-- Creates variables: `machine.status` and `machine.details.temp`
-
-**To customize:**
-1. Edit the **DataHub - IN** node:
-   - Change `Provider ID` to match your system
-   - Update variable mappings in the table
-2. Edit the **Function** node to generate your data structure
-3. Click **Deploy**
 
 ---
 
-## Finding Variable IDs
+## 🔧 Node Usage
 
-The **DataHub - IN** node requires variable IDs (numbers). Here's how to find them:
+### 📥 DataHub - Read
+Reads values from existing providers (like `u_os_adm`).
+- **Provider ID:** Name of the source provider.
+- **Variables:** Enter `Key:ID` manually (e.g. `temperature:0`).
+- **Trigger:** "Event" (instant update) or "Poll" (interval).
 
-### Option 1: u-OS Web Interface
+### 📤 DataHub - Write
+Changes values in other providers.
+- **Input:** Send `msg.payload` with the new value.
+- **Config:** Target `Provider ID` and `Variable ID` (or Key).
 
-1. Open **Data Hub** → **Providers**
-2. Click on your target provider (e.g., `u_os_adm`)
-3. Click **Variables** tab
-4. Note the **ID** column (e.g., `0`, `1`, `2`)
-
-### Option 2: REST API Query
-
-```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  http://<YOUR_UOS_IP>/datahub/v1/providers/u_os_adm/variables
-```
-
-Response shows variable definitions with IDs:
-```json
-{
-  "variables": [
-    {"id": 0, "key": "manufacturer_name", ...},
-    {"id": 2, "key": "digital_nameplate.address_information.zipcode", ...}
-  ]
-}
-```
-
-### Option 3: Check Other Apps
-
-If you have other Data Hub clients (apps, PLCs), check their variable definitions to find the IDs.
+### 📡 DataHub - Provider
+Publishes your own data to the Data Hub.
+- **Input:** Send a JSON object: `{ "machine": { "status": "active" } }`.
+- **Auto-Discovery:** Automatically creates variable definitions based on your JSON structure.
 
 ---
 
-## DataHub - Read Node
+## 🆘 Troubleshooting
 
-### Purpose
-Subscribe to variables from a Data Hub provider and output their values as JSON messages.
-
-### Configuration
-
-1. **Config Node:** Select your u-OS connection
-2. **Provider ID:** Enter the provider name (e.g., `u_os_adm`, `hub`, `u_os_sbm`)
-3. **Variables Table:** Manually map variable names to IDs
-
-| Variable Name | ID |
-|--------------|-----|
-| `manufacturer_name` | `0` |
-| `zipcode` | `2` |
-
-Click **"Add Variable"** for each entry.
-
-4. **Trigger Mode:**
-   - **Event (on change):** Efficient. Outputs only when values change.
-   - **Poll (interval):** Forces periodic reads (e.g., every 100ms).
-
-### Output Format
-
-```json
-{
-  "type": "snapshot",
-  "variables": [
-    {
-      "providerId": "u_os_adm",
-      "id": 2,
-      "key": "zipcode",
-      "value": "12345",
-      "quality": "GOOD",
-      "timestampNs": 1234567890000000000
-    }
-  ]
-}
-```
-
-### Triggering Reads
-
-Connect an **Inject** node to the input port to trigger manual reads.
+- **Connection Failed?** Check Host/IP and ensure Client ID/Secret are correct.
+- **Variable not found?** IDs in Node-RED must match the IDs in the u-OS Data Hub Web UI.
+- **Write not working?** Ensure your OAuth client has `hub.variables.readwrite` scope.
 
 ---
 
-## DataHub - Provider Node
-
-### Purpose
-Creates a real Data Hub provider that publishes variables. Other applications can subscribe to your data in real-time.
-
-### How It Works
-
-The OUT node:
-1. **Registers as a Provider** on the Data Hub (uses `Client Name` from Config)
-2. **Publishes variable definitions** automatically when new variables are sent
-3. **Sends value updates** via NATS when you send JSON messages
-4. **Answers read requests** from other consumers
-5. **Supports event-driven subscriptions** - other apps get updates **instantly**
-
-### Configuration
-
-1. **Config Node:** Select your u-OS connection
-2. **Provider ID:** Leave **empty** to use `Client Name` (recommended)
-
-### Send Data
-
-Send JSON to the input:
-
-```json
-{
-  "temperature": 25.5,
-  "machine": {
-    "status": "running",
-    "speed": 1500
-  }
-}
-```
-
-This creates:
-- `temperature` → Variable ID 0
-- `machine.status` → Variable ID 1
-- `machine.speed` → Variable ID 2
-
-**Other apps can now:**
-- Subscribe to value changes (event-driven, instant updates)
-- Query current values (on-demand reads)
-- View in u-OS Web UI (**Data Hub** → **Providers** → `nodered`)
-
-### Event-Driven Communication
-
-```
-[Node-RED: DataHub - OUT] → [u-OS Data Hub (NATS)]
-                                      ↓
-                        ┌─────────────┼─────────────┐
-                        ↓             ↓             ↓
-                  [Other Apps]  [Dashboards]  [PLCs]
-                  (subscribe)   (subscribe)   (subscribe)
-```
-
-**All subscribers receive updates IMMEDIATELY** - no polling needed!
-
----
-
-## DataHub - Write Node
-
-### Purpose
-Send **write commands** to **external Data Hub providers** to change variable values. This is different from the Provider node - you're controlling **other** systems, not creating your own provider.
-
-### Use Cases
-
-✅ **Control external devices** - Toggle flags, update setpoints  
-✅ **Machine control** - Start/stop operations via Data Hub  
-✅ **Configuration updates** - Change parameters in other apps  
-✅ **Integration scenarios** - Write to PLCs, other Node-RED instances, etc.  
-
-### Configuration
-
-1. **Config Node:** Select your u-OS connection
-2. **Provider ID:** Target provider to write to (e.g., `u_os_adm`, `u_os_sbm`)
-3. **Variable ID:** Numeric ID of the variable to write
-
-### Finding Variable IDs
-
-Same as Read node - check u-OS Web UI:
-
-1. Go to **Data Hub** → **Providers** → Select target provider
-2. Click **Variables** tab
-3. Note the **ID** column
-
-### Input Format
-
-Send the new value as `msg.payload`:
-
-**Toggle Boolean:**
-```javascript
-msg.payload = false;
-return msg;
-```
-
-**Update Number:**
-```javascript
-msg.payload = 42.5;
-return msg;
-```
-
-**Change String:**
-```javascript
-msg.payload = "stopped";
-return msg;
-```
-
-### Output
-
-Outputs confirmation when write command is sent:
-
-```json
-{
-  "success": true,
-  "providerId": "u_os_adm",
-  "variableId": 5,
-  "value": false
-}
-```
-
-### Example Flow
-
-```
-[Inject: false] → [DataHub - Write] → [Debug]
-                  (Provider: u_os_adm,
-                   Variable ID: 5)
-```
-
-### Important Notes
-
-⚠️ **Requires write permissions:** OAuth client must have `hub.variables.readwrite` scope  
-⚠️ **Provider must accept writes:** Some providers are read-only  
-⚠️ **Variable must exist:** The variable ID must be valid  
-
----
-
-## Troubleshooting
-
-### No Output from IN Node
-
-✓ Config node deployed?  
-✓ Provider ID correct? (check u-OS Web UI → Data Hub → Providers)  
-✓ Variable IDs correct? (check u-OS Web UI → Variables)  
-✓ Inject signal sent to input port?  
-
-### "Variable not found" Error
-
-- Double-check IDs in the Variables table
-- Verify IDs match those in u-OS Web UI
-
-### Connection Test Fails
-
-- Check Host/Port are correct and device is reachable
-- Verify Client ID/Secret match exactly
-- Ensure OAuth client exists in u-OS
-- Verify all `hub.variables.*` scopes are granted
-
-### Why Manual IDs?
-
-Auto-discovery requires special permissions on the provider definition endpoint, which are often restricted for security. The manual table works **without** this permission by querying specific IDs directly.
-
----
-
-## FAQ
-
-### Q: Can I use the provider created by Provider node in the Read node?
-**A:** **No, don't do this!** The Provider node's provider only exists while Node-RED runs. On restart, it disappears and the Read node fails. Read from **system providers** (`u_os_sbm`, `u_os_adm`) or other persistent apps instead.
-
-### Q: What's the difference between Provider and Write nodes?
-**A:**  
-- **DataHub - Provider:** Creates your **own** provider. Other apps read **from** you.
-- **DataHub - Write:** Sends commands **to other** providers. You write **to** them.
-
-### Q: Where do I get Client ID/Secret?
-**A:** u-OS Web Interface → **u-OS Control Center** → **Identity & access** → **Clients** → **Add client**
-
-### Q: What are the required OAuth scopes?
-**A:** 
-- **Read Node:** `hub.variables.readonly`
-- **Provider Node:** `hub.variables.provide` + `hub.variables.readwrite`
-- **Write Node:** `hub.variables.readwrite`
-- **Recommended:** Select all `hub.variables.*` scopes when creating the client
-
-### Q: Can I use this outside the local network?
-**A:** Yes, if your u-OS device is reachable over the network and you configure the correct Host/Port.
-
-### Q: Event vs Poll - which is better?
-**A:** **Event** (default) is more efficient. Use **Poll** only if you need guaranteed periodic readings regardless of value changes.
-
----
-
-## Support
-
-**Issues, Questions, or Feature Requests:**  
-Contact [IoTUeli](https://iotueli.ch) or open an issue on [GitHub](https://github.com/uiff/nats-NodeRed-Node-uc20)
-
----
-
-## License
-
-MIT License
-
-**Disclaimer:** This package is a community contribution, not an official Weidmüller product.
+**License:** MIT  
+**Disclaimer:** Community project, not an official Weidmüller product.
