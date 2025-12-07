@@ -63,10 +63,13 @@ module.exports = function (RED) {
       this.error('Please select a u-OS config node.');
       return;
     }
-    this.providerId = config.providerId || connection.clientName || 'nodered';
+    // Retrieve configuration node
+    this.providerId = (config.providerId || 'nodered').trim();
+    const uosConfig = RED.nodes.getNode(config.uosConfig);
+    this.definitions = config.definitions || [];
 
     const defMap = new Map();
-    const definitions = [];
+    // const definitions = []; // This line is effectively replaced by this.definitions
     const stateMap = new Map();
     let nextId = 100;
     let fingerprint = 0;
@@ -144,9 +147,12 @@ module.exports = function (RED) {
 
         // Debug: Log complete HEX dump to verify flatbuffer structure
         const hex = Buffer.from(payload).toString('hex');
+
+        const subject = loadedSubjects.varsChangedEvent(this.providerId);
+        console.log(`[DataHub Output] Sending Heartbeat to '${subject}'`);
         console.log(`[DataHub Output] Packet HEX (${payload.length} bytes): ${hex}`);
 
-        await nc.publish(loadedSubjects.varsChangedEvent(this.providerId), payload);
+        await nc.publish(subject, payload);
         console.log(`[DataHub Output] Heartbeat sent. State count: ${Object.keys(stateObj).length}`);
       } catch (err) {
         this.warn(`Heartbeat error: ${err.message}`);
