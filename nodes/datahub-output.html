@@ -11,29 +11,81 @@
     outputs: 1,
     icon: "datahub-provider.svg",
     oneditprepare: function () {
-      const updateProviderIdInfo = () => {
-        const configId = $('#node-input-connection').val();
+      const node = this;
+      const $conn = $('#node-input-connection');
+      const $provIdInput = $('#node-input-providerId');
+
+      // Create UI elements dynamically if they don't exist in template
+      // Wrapper for the specific UI
+      const $wrapper = $('<div style="display:inline-block; width:70%;"></div>').insertAfter($('label[for="node-input-providerId"]'));
+
+      // 1. Display Mode Elements
+      const $displayGroup = $('<div id="prov-id-display-group" style="display:none; align-items:center;"></div>').appendTo($wrapper);
+      // Styled like a read-only input but cleaner
+      const $displayText = $('<span id="prov-id-display-text" style="flex-grow:1; padding:6px; background:#f9f9f9; border:1px solid #ccc; border-radius:4px; color:#333;">nodered</span>').appendTo($displayGroup);
+      const $editBtn = $('<a class="red-ui-button" style="margin-left:5px;"><i class="fa fa-pencil"></i></a>').appendTo($displayGroup);
+
+      // 2. Input Mode Elements
+      const $inputGroup = $('<div id="prov-id-input-group" style="display:none; align-items:center;"></div>').appendTo($wrapper);
+      // Move existing input into this group
+      $provIdInput.css('width', '100%').css('flex-grow', '1').appendTo($inputGroup);
+      const $resetBtn = $('<a class="red-ui-button" style="margin-left:5px;" title="Reset to Auto"><i class="fa fa-undo"></i></a>').appendTo($inputGroup);
+
+      // Helper for updating the display text based on Config
+      const updateDisplay = () => {
+        const configId = $conn.val();
         const configNode = RED.nodes.node(configId);
-        const $provId = $('#node-input-providerId');
+        const clientName = (configNode && configNode.clientName) ? configNode.clientName : '...';
 
-        if (configNode && configNode.clientName) {
-          // User wants to see it "greyed out" -> Placeholder is best, or disabled?
-          // "desweiteren in der Hilfe erwähnen, das Provider ID vom Client Name übernommen wird"
-          // "du kannst ja das fenster ausgegraut lassen"
+        $displayText.text(clientName);
 
-          // If the field is empty, show the clientName as placeholder/visual
-          $provId.attr('placeholder', `Default: ${configNode.clientName}`);
-
-          // Show a helper message
-          $('#provider-id-helper').text(`Using Client ID from '${configNode.clientName}' (default)`);
+        // If config is missing/invalid, fallback to manual?
+        if (!configNode) {
+          $displayText.text('(No Config Selected)');
+          $displayText.css('color', '#999');
         } else {
-          $provId.attr('placeholder', 'Leave empty to use Client ID');
-          $('#provider-id-helper').text('');
+          $displayText.css('color', '#333');
         }
       };
 
-      $('#node-input-connection').on('change', updateProviderIdInfo);
-      updateProviderIdInfo();
+      // Toggle Logic
+      const showDisplay = () => {
+        $inputGroup.hide();
+        $displayGroup.css('display', 'flex'); // Use flex for alignment
+        // Clear input value so it saves as empty (auto)
+        // Wait, if we clear it here, on save it will be empty. accessing node.providerId in oneditprepare might be stale.
+        // We rely on the input's value. 
+        $provIdInput.val('');
+        updateDisplay();
+        $('#provider-id-helper').text('Using Client ID from selected u-OS Config (default)');
+      };
+
+      const showInput = () => {
+        $displayGroup.hide();
+        $inputGroup.css('display', 'flex');
+        $provIdInput.focus();
+        $('#provider-id-helper').text('Custom Provider ID will be used instead of Client ID.');
+      };
+
+      // Events
+      $editBtn.on('click', function () {
+        showInput();
+      });
+
+      $resetBtn.on('click', function () {
+        showDisplay();
+      });
+
+      $conn.on('change', updateDisplay);
+
+      // Initial State
+      // If node.providerId is empty -> Display Mode
+      // If node.providerId has value -> Input Mode
+      if (!node.providerId) {
+        showDisplay();
+      } else {
+        showInput();
+      }
     },
     label: function () {
       return this.name || `DataHub - Provider ${this.providerId || ''}`;
@@ -56,9 +108,9 @@
   </div>
   <div class="form-row">
     <label for="node-input-providerId"><i class="fa fa-tag"></i> Provider ID</label>
-    <input type="text" id="node-input-providerId" placeholder="Leave empty to use Client ID">
+    <!-- Input is handled dynamically in oneditprepare -->
+    <input type="text" id="node-input-providerId" style="display:none;"> 
   </div>
-  <div class="form-tips" id="provider-id-helper" style="margin-bottom:10px; color:#888;"></div>
 </script>
 
 <script type="text/html" data-help-name="datahub-output">
@@ -67,8 +119,9 @@
     <dt>u-OS Config</dt>
     <dd>Connection node with host/port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
-    <dd>The unique ID for this provider. If left <b>empty</b>, it uses the <strong>Client ID</strong> (associated with the configured <em>Client Name</em>).</dd>
-    <dd><em>UI Note:</em> The input placeholder shows the Client Name as a reference.</dd>
+    <dd>The unique ID for this provider.</dd>
+    <dd><b>Auto Mode (Default):</b> Shows the <em>Client Name</em> from your Config. Uses this name automatically.</dd>
+    <dd><b>Manual Mode:</b> Click the pencil icon to enter a custom ID manually (not recommended).</dd>
   </dl>
   <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{
