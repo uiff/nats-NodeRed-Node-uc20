@@ -134,7 +134,9 @@ module.exports = function (RED) {
       }
 
       const stateObj = {};
+      const nowNs = Date.now() * 1_000_000;
       for (const s of stateMap.values()) {
+        s.timestampNs = nowNs; // Force refresh timestamp
         stateObj[s.id] = s;
       }
       try {
