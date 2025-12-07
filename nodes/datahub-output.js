@@ -153,6 +153,7 @@ module.exports = function (RED) {
         console.log(`[DataHub Output] Packet HEX (${payload.length} bytes): ${hex}`);
 
         await nc.publish(subject, payload);
+        await nc.flush(); // Ensure NATS accepts the packet (catches Permission Errors)
         console.log(`[DataHub Output] Heartbeat sent. State count: ${Object.keys(stateObj).length}`);
       } catch (err) {
         this.warn(`Heartbeat error: ${err.message}`);
