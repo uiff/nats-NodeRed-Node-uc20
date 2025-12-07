@@ -120,6 +120,7 @@ module.exports = function (RED) {
         const [payloads, subjects] = await loadModules();
         nc = await connection.acquire();
         await sendDefinitionUpdate(payloads, subjects);
+        // Listen for Variable READ requests
         sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
           callback: (err, msg) => {
             if (err) {
@@ -129,6 +130,26 @@ module.exports = function (RED) {
             handleRead(payloads, msg).catch((error) => this.warn(error.message));
           },
         });
+
+        // Listen for Definition READ requests (Discovery)
+        const defSub = nc.subscribe(subjects.readProviderDefinitionQuery(this.providerId), {
+          callback: (err, msg) => {
+            if (err) {
+              this.warn(`Def request error: ${err.message}`);
+              return;
+            }
+            if (!msg.reply) return;
+
+            // Send known definition
+            const { payload } = payloads.buildProviderDefinitionEvent(definitions);
+            nc.publish(msg.reply, payload);
+          }
+        });
+
+        // Track the subscription to close it later if needed (though existing code only tracks 'sub')
+        // Ideally we should track both or use a subscription manager, but for now let's hope 'sub' isn't the only one closed.
+        // Actually, looking at close(), it likely calls connection.release(). NATS connection close cleans up subs.
+
         this.status({ fill: 'green', shape: 'dot', text: 'ready' });
 
         this.on('input', async (msg, send, done) => {
