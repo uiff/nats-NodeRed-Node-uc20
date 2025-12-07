@@ -64,7 +64,15 @@ module.exports = function (RED) {
       return;
     }
     // Retrieve configuration node
-    this.providerId = (config.providerId || 'nodered').trim();
+    // Default to Connection's Client ID if providerId is empty/not set
+    const configClientId = connection.clientId || 'nodered';
+    let pId = (config.providerId || '').trim();
+    if (!pId) {
+      pId = configClientId;
+      // Strip non-alphanumeric chars if Client ID is a UUID/complex string?
+      // Usually Provider ID can be matching Client ID exactly.
+    }
+    this.providerId = pId;
     // this.definitions = config.definitions || [];
 
     const defMap = new Map();
