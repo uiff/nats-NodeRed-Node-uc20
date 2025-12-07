@@ -104,8 +104,13 @@ module.exports = function (RED) {
     const handleRead = async (payloads, msg) => {
       if (!msg.reply)
         return;
-      const snapshot = Array.from(stateMap.values());
-      const response = payloads.buildReadVariablesResponse(definitions, snapshot, fingerprint);
+
+      // Convert stateMap to ID-indexed Object for correct lookup in payloads.js
+      const stateObj = {};
+      for (const s of stateMap.values()) {
+        stateObj[s.id] = s;
+      }
+      const response = payloads.buildReadVariablesResponse(definitions, stateObj, fingerprint);
       await nc.publish(msg.reply, response);
     };
 
@@ -159,14 +164,20 @@ module.exports = function (RED) {
                 quality: 'GOOD',
               };
               states.push(state);
-              stateMap.set(def.id, state);
+              // states.push(state); // No longer pushing to a temporary 'states' array
+              stateMap.set(def.id, state); // Update the global stateMap
             });
             if (definitionsChanged) {
               await sendDefinitionUpdate(payloadsMod, subjectsMod);
               // Give Data Hub a moment to process the new definition before sending values
               await new Promise(r => setTimeout(r, 100));
             }
-            const payload = payloadsMod.buildVariablesChangedEvent(definitions, states, fingerprint);
+            // Convert stateMap to Object for payload builder
+            const stateObj = {};
+            for (const s of stateMap.values()) {
+              stateObj[s.id] = s;
+            }
+            const payload = payloadsMod.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
             await nc.publish(subjectsMod.varsChangedEvent(this.providerId), payload);
             send(msg);
             done();
