@@ -42,8 +42,8 @@
     <dt>u-OS Config</dt>
     <dd>Connection node with host/port and OAuth credentials.</dd>
     <dt>Provider ID</dt>
-    <dd>The unique ID for this provider. If left **empty**, it uses the <strong>Client Name</strong> from the u-OS Config.</dd>
-    <dd><em>Recommendation:</em> Leave empty or use your Client ID to avoid permission errors.</dd>
+    <dd>The unique ID for this provider. If left <b>empty</b>, it automatically uses the Client ID from the Config node.</dd>
+    <dd><em>Recommendation:</em> Leave empty! This ensures your Provider ID always matches your Client ID, avoiding "Permission Denied" errors and invisible providers.</dd>
   </dl>
   <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{

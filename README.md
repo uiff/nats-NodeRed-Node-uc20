@@ -48,8 +48,9 @@ Restart Node-RED. The nodes will appear in the **"Weidmüller DataHub"** categor
 2. Click the pencil ✏️ next to **Connection**.
 3. Enter:
    - **Host:** IP of your u-OS device (e.g. `192.168.10.100`)
+   - **Client Name:** Important! Give it a name (e.g. `nodered`).
    - **Client ID / Secret:** Paste from Step 1.
-4. Click **Connect**.
+4. Click **Test connection**.
 
 ### 3. Example Flow
 
@@ -66,7 +67,7 @@ Import this flow to test reading and writing immediately:
 ### 📥 DataHub - Read
 Reads values from existing providers (like `u_os_adm`).
 - **Provider ID:** Name of the source provider.
-- **Variables:** Enter `Key:ID` manually (e.g. `temperature:0`).
+- **Variables:** Enter `Key:ID` manually.
 - **Trigger:** "Event" (instant update) or "Poll" (interval).
 
 ### 📤 DataHub - Write
@@ -76,6 +77,7 @@ Changes values in other providers.
 
 ### 📡 DataHub - Provider
 Publishes your own data to the Data Hub.
+- **Provider ID:** Leave empty to use your Client ID (Recommended).
 - **Input:** Send a JSON object: `{ "machine": { "status": "active" } }`.
 - **Auto-Discovery:** Automatically creates variable definitions based on your JSON structure.
 
@@ -83,6 +85,7 @@ Publishes your own data to the Data Hub.
 
 ## 🆘 Troubleshooting
 
+- **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.
 - **Connection Failed?** Check Host/IP and ensure Client ID/Secret are correct.
 - **Variable not found?** IDs in Node-RED must match the IDs in the u-OS Data Hub Web UI.
 - **Write not working?** Ensure your OAuth client has `hub.variables.readwrite` scope.
