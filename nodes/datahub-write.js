@@ -1,4 +1,54 @@
 import { encodeWriteVariablesCommand } from '../lib/payloads.js';
+import { buildReadProviderDefinitionQuery, decodeProviderDefinition } from '../lib/payloads.js';
+
+// Simple cache for provider definitions (5 min TTL)
+const providerCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function resolveVariableKey(nc, providerId, key, node) {
+    const cacheKey = `${providerId}`;
+    const cached = providerCache.get(cacheKey);
+
+    // Check cache
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+        const variable = cached.definition.variables.find(v => v.key === key);
+        if (variable) {
+            node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id} (cached)`);
+            return variable.id;
+        }
+    }
+
+    // Query provider definition
+    try {
+        const query = buildReadProviderDefinitionQuery();
+        const subject = `v1.loc.${providerId}.def.query`;
+
+        const response = await nc.request(subject, query, { timeout: 3000 });
+        const definition = decodeProviderDefinition(response.data);
+
+        if (!definition) {
+            throw new Error(`Provider ${providerId} not found or no definition returned`);
+        }
+
+        // Cache the definition
+        providerCache.set(cacheKey, {
+            definition,
+            timestamp: Date.now()
+        });
+
+        // Find variable by key
+        const variable = definition.variables.find(v => v.key === key);
+        if (!variable) {
+            throw new Error(`Variable key '${key}' not found in provider ${providerId}`);
+        }
+
+        node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id}`);
+        return variable.id;
+
+    } catch (err) {
+        throw new Error(`Failed to resolve key '${key}': ${err.message}`);
+    }
+}
 
 export default function (RED) {
     function DataHubWriteNode(config) {
@@ -16,6 +66,8 @@ export default function (RED) {
         // Store configuration
         this.providerId = config.providerId?.trim();
         this.variableId = config.variableId ? parseInt(config.variableId, 10) : null;
+        this.variableKey = config.variableKey?.trim();
+        this.resolvedId = null; // Cached resolved ID
 
         if (!this.providerId) {
             node.error('Provider ID is required');
@@ -23,13 +75,25 @@ export default function (RED) {
             return;
         }
 
-        if (this.variableId === null || isNaN(this.variableId)) {
-            node.error('Variable ID is required and must be a number');
-            node.status({ fill: 'red', shape: 'dot', text: 'invalid variable ID' });
+        // Validate: either ID or Key required
+        if (!this.variableId && !this.variableKey) {
+            node.error('Either Variable ID or Variable Key is required');
+            node.status({ fill: 'red', shape: 'dot', text: 'missing variable' });
             return;
         }
 
-        node.status({ fill: 'green', shape: 'ring', text: 'ready' });
+        // If ID provided and valid, use it
+        if (this.variableId && !isNaN(this.variableId)) {
+            this.resolvedId = this.variableId;
+            node.status({ fill: 'green', shape: 'ring', text: 'ready' });
+        } else if (this.variableKey) {
+            // Key provided - will resolve on first message
+            node.status({ fill: 'yellow', shape: 'ring', text: 'key needs resolution' });
+        } else {
+            node.error('Invalid Variable ID');
+            node.status({ fill: 'red', shape: 'dot', text: 'invalid ID' });
+            return;
+        }
 
         // Handle incoming messages
         node.on('input', async function (msg) {
@@ -49,10 +113,19 @@ export default function (RED) {
                     return;
                 }
 
+                // Resolve variable ID if needed
+                let varId = node.resolvedId;
+                if (!varId && node.variableKey) {
+                    node.status({ fill: 'yellow', shape: 'dot', text: 'resolving key...' });
+                    varId = await resolveVariableKey(nc, node.providerId, node.variableKey, node);
+                    node.resolvedId = varId; // Cache for future messages
+                    node.status({ fill: 'green', shape: 'ring', text: 'ready' });
+                }
+
                 // Build write command
                 const writeCommand = encodeWriteVariablesCommand([
                     {
-                        id: node.variableId,
+                        id: varId,
                         value: value
                     }
                 ]);
@@ -67,7 +140,8 @@ export default function (RED) {
                 msg.payload = {
                     success: true,
                     providerId: node.providerId,
-                    variableId: node.variableId,
+                    variableId: varId,
+                    variableKey: node.variableKey || null,
                     value: value
                 };
                 node.send(msg);

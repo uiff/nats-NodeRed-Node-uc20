@@ -7,18 +7,41 @@
             connection: { type: "uos-config", required: true },
             providerId: { value: "", required: true },
             variableId: { value: "", required: false },
-            variableName: { value: "", required: false }
+            variableKey: { value: "", required: false }
         },
         inputs: 1,
         outputs: 1,
-        icon: "white/datahub-output.svg",
+        icon: "white/datahub-write.svg",
         label: function () {
             if (this.name) return this.name;
-            return `Write → ${this.providerId || 'provider'}`;
+            const target = this.variableKey || this.variableId || 'var';
+            return `Write → ${this.providerId}:${target}`;
         },
         paletteLabel: "DataHub - Write",
         oneditprepare: function () {
-            // Nothing special needed for now
+            // Validate: at least one of ID or Key required
+            const validateVar = () => {
+                const hasId = $('#node-input-variableId').val();
+                const hasKey = $('#node-input-variableKey').val();
+                if (!hasId && !hasKey) {
+                    $('#var-validation-error').show();
+                    return false;
+                } else {
+                    $('#var-validation-error').hide();
+                    return true;
+                }
+            };
+
+            $('#node-input-variableId, #node-input-variableKey').on('change keyup', validateVar);
+        },
+        oneditsave: function () {
+            // Final validation before save
+            const hasId = this.variableId;
+            const hasKey = this.variableKey;
+            if (!hasId && !hasKey) {
+                alert('Please provide either Variable ID or Variable Key');
+                return false;
+            }
         }
     });
 </script>
@@ -41,10 +64,23 @@
 
     <div class="form-row">
         <label for="node-input-variableId"><i class="fa fa-hashtag"></i> Variable ID</label>
-        <input type="number" id="node-input-variableId" placeholder="e.g. 5">
+        <input type="number" id="node-input-variableId" placeholder="e.g. 5 (optional)">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-variableKey"><i class="fa fa-key"></i> Variable Key</label>
+        <input type="text" id="node-input-variableKey" placeholder="e.g. machine.temp (optional)">
+    </div>
+
+    <div id="var-validation-error" class="form-tips" style="display:none; color:#c00;">
+        <i class="fa fa-warning"></i> <b>Either Variable ID or Variable Key is required</b>
     </div>
 
     <div class="form-tips">
+        <i class="fa fa-info-circle"></i> Provide <b>either</b> Variable ID (numeric) <b>or</b> Variable Key (text). Key will be resolved to ID automatically.
+    </div>
+
+    <div class="form-tips" style="margin-top:10px;">
         <i class="fa fa-info-circle"></i> Send <code>msg.payload</code> with the value to write (e.g., <code>true</code>, <code>42</code>, <code>"hello"</code>)
     </div>
 </script>

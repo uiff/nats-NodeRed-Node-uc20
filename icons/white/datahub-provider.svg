@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60">
+  <!-- Broadcast/antenna symbol -->
+  <circle cx="20" cy="30" r="3" fill="white"/>
+  
+  <!-- Inner waves -->
+  <path d="M 12,22 Q 8,30 12,38" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 28,22 Q 32,30 28,38" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Outer waves -->
+  <path d="M 7,14 Q 2,30 7,46" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 33,14 Q 38,30 33,46" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

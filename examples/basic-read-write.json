@@ -1,0 +1,102 @@
+[
+    {
+        "id": "example-flow-1",
+        "type": "tab",
+        "label": "u-OS DataHub Example: Read & Write",
+        "disabled": false,
+        "info": "Basic example showing how to read from and write to the u-OS Data Hub.\n\n**Setup:**\n1. Configure the uos-config node with your u-OS device credentials\n2. Update Provider IDs to match your system\n3. Update Variable IDs/Keys to match your variables\n4. Deploy and test!"
+    },
+    {
+        "id": "read-node-example",
+        "type": "datahub-input",
+        "z": "example-flow-1",
+        "name": "Read Zipcode",
+        "connection": "config-example",
+        "providerId": "u_os_adm",
+        "manualVariables": "digital_nameplate.address_information.zipcode:2",
+        "triggerMode": "event",
+        "pollingInterval": "1000",
+        "x": 150,
+        "y": 100,
+        "wires": [
+            [
+                "debug-read"
+            ]
+        ]
+    },
+    {
+        "id": "debug-read",
+        "type": "debug",
+        "z": "example-flow-1",
+        "name": "Display Read Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 380,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "inject-write",
+        "type": "inject",
+        "z": "example-flow-1",
+        "name": "Click to Write",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 150,
+        "y": 200,
+        "wires": [
+            [
+                "write-node-example"
+            ]
+        ]
+    },
+    {
+        "id": "write-node-example",
+        "type": "datahub-write",
+        "z": "example-flow-1",
+        "name": "Write Value",
+        "connection": "config-example",
+        "providerId": "u_os_adm",
+        "variableId": "5",
+        "variableKey": "",
+        "x": 340,
+        "y": 200,
+        "wires": [
+            [
+                "debug-write"
+            ]
+        ]
+    },
+    {
+        "id": "debug-write",
+        "type": "debug",
+        "z": "example-flow-1",
+        "name": "Write Confirmation",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 560,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "config-example",
+        "type": "uos-config",
+        "host": "192.168.10.100",
+        "port": 49360,
+        "clientName": "nodered",
+        "scope": "hub.variables.provide hub.variables.readonly hub.variables.readwrite"
+    }
+]

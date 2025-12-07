@@ -1,0 +1,87 @@
+[
+    {
+        "id": "example-flow-2",
+        "type": "tab",
+        "label": "u-OS DataHub Example: Provider",
+        "disabled": false,
+        "info": "Advanced example showing how to create your own Data Hub provider.\n\n**What this does:**\n- Creates a provider named 'nodered' (or your clientName)\n- Publishes random temperature data every 5 seconds\n- Other apps can subscribe to this data in real-time!\n\n**Setup:**\n1. Configure the uos-config node\n2. Deploy\n3. Check u-OS Web UI → Data Hub → Providers → 'nodered' to see your variables!"
+    },
+    {
+        "id": "inject-provider",
+        "type": "inject",
+        "z": "example-flow-2",
+        "name": "Every 5 seconds",
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 100,
+        "wires": [
+            [
+                "function-random"
+            ]
+        ]
+    },
+    {
+        "id": "function-random",
+        "type": "function",
+        "z": "example-flow-2",
+        "name": "Generate Random Data",
+        "func": "function randomBetween(min, max) {\n    return Math.random() * (max - min) + min;\n}\n\nmsg.payload = {\n    machine: {\n        status: \"running\",\n        speed: Math.floor(randomBetween(1000, 2000)),\n        details: {\n            temp: randomBetween(30, 80),\n            pressure: randomBetween(1.0, 5.0)\n        }\n    },\n    timestamp: new Date().toISOString()\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 100,
+        "wires": [
+            [
+                "provider-node-example"
+            ]
+        ]
+    },
+    {
+        "id": "provider-node-example",
+        "type": "datahub-output",
+        "z": "example-flow-2",
+        "name": "Publish to DataHub",
+        "connection": "config-example-2",
+        "providerId": "",
+        "x": 660,
+        "y": 100,
+        "wires": [
+            [
+                "debug-provider"
+            ]
+        ]
+    },
+    {
+        "id": "debug-provider",
+        "type": "debug",
+        "z": "example-flow-2",
+        "name": "Published Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 890,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "config-example-2",
+        "type": "uos-config",
+        "host": "192.168.10.100",
+        "port": 49360,
+        "clientName": "nodered",
+        "scope": "hub.variables.provide hub.variables.readonly hub.variables.readwrite"
+    }
+]

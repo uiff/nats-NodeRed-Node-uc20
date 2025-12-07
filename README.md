@@ -37,6 +37,29 @@ Restart Node-RED. The nodes appear in the **"u-OS DataHub NATS"** category in th
 
 ---
 
+## What's New in v0.2.0
+
+### 🎯 Variable Key Support
+Write Node now supports **Variable Keys** (e.g., `machine.temp`) in addition to numeric IDs!
+- Automatic Key→ID resolution via provider definition query
+- Cached for performance (5 min TTL)
+- More user-friendly than remembering IDs
+
+### 🎨 Custom Icons
+Each node now has a unique, meaningful icon:
+- **Read:** Database with down arrow (data out)
+- **Provider:** Broadcast antenna (publishing)
+- **Write:** Database with up arrow (commands in)
+
+### 📦 Example Flows
+Ready-to-import example flows included in `examples/` directory:
+- `basic-read-write.json` - Getting started with Read & Write
+- `advanced-provider.json` - Creating your own provider
+
+**Import:** Node-RED menu (☰) → Import → select file from `examples/`
+
+---
+
 ## Why NATS Instead of REST API?
 
 The u-OS Data Hub offers both **NATS** (this package) and **REST API** access. Here's why NATS is the better choice for Node-RED:
