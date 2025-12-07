@@ -68,7 +68,7 @@ module.exports = function (RED) {
     const defMap = new Map();
     const definitions = [];
     const stateMap = new Map();
-    let nextId = 0;
+    let nextId = 100;
     let fingerprint = 0;
     let nc;
     let sub;
@@ -82,7 +82,7 @@ module.exports = function (RED) {
         id: nextId += 1,
         key: normalized,
         dataType,
-        access: 'READ_WRITE',
+        access: 'READWRITE',
       };
       defMap.set(normalized, def);
       definitions.push(def);
