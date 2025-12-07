@@ -1,6 +1,6 @@
 <script type="text/javascript">
     RED.nodes.registerType('datahub-write', {
-        category: 'u-OS DataHub NATS',
+        category: 'Weidmueller DataHub',
         color: '#ff9900',
         defaults: {
             name: { value: "" },
@@ -13,9 +13,7 @@
         outputs: 1,
         icon: "white/datahub-write.svg",
         label: function () {
-            if (this.name) return this.name;
-            const target = this.variableKey || this.variableId || 'var';
-            return `Write → ${this.providerId}:${target}`;
+            return this.name || "DataHub - Write";
         },
         paletteLabel: "DataHub - Write",
         oneditprepare: function () {
@@ -35,13 +33,7 @@
             $('#node-input-variableId, #node-input-variableKey').on('change keyup', validateVar);
         },
         oneditsave: function () {
-            // Final validation before save
-            const hasId = this.variableId;
-            const hasKey = this.variableKey;
-            if (!hasId && !hasKey) {
-                alert('Please provide either Variable ID or Variable Key');
-                return false;
-            }
+            // Loose validation - server side will check
         }
     });
 </script>

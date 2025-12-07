@@ -37,6 +37,11 @@ Restart Node-RED. The nodes appear in the **"u-OS DataHub NATS"** category in th
 
 ---
 
+## What's New in v0.2.6 (Critical Fixes)
+- **FIXED:** `Snapshot failed: ts.value is not a function` error in Read node.
+- **FIXED:** Invalid timestamp encoding in Provider node (Seconds/Nanoseconds mismatch).
+- **FIXED:** Label and Category logic for all nodes.
+
 ## What's New in v0.2.0
 
 ### 🎯 Variable Key Support

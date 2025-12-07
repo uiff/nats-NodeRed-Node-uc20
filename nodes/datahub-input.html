@@ -1,6 +1,6 @@
 <script type="text/javascript">
   RED.nodes.registerType('datahub-input', {
-    category: 'u-OS DataHub NATS',
+    category: 'Weidmueller DataHub',
     color: '#ff9900',
     defaults: {
       name: { value: "" },
@@ -15,7 +15,7 @@
     icon: "white/datahub-read.svg",
     label: function () {
       if (this.name) return this.name;
-      return "DataHub - IN";
+      return "DataHub - Read";
     },
     paletteLabel: "DataHub - Read",
     oneditprepare: function () {

@@ -7,7 +7,7 @@ const payloadModuleUrl = pathToFileURL(path.join(__dirname, '..', 'lib', 'payloa
 const providerCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-export default function (RED) {
+module.exports = function (RED) {
     async function resolveVariableKey(nc, providerId, key, node, payloads) {
         const cacheKey = `${providerId}`;
         const cached = providerCache.get(cacheKey);
@@ -176,4 +176,4 @@ export default function (RED) {
     }
 
     RED.nodes.registerType('datahub-write', DataHubWriteNode);
-}
+};
