@@ -133,6 +133,15 @@ module.exports = function (RED) {
 
         this.on('input', async (msg, send, done) => {
           try {
+            // Auto-parse string payloads
+            if (typeof msg.payload === 'string') {
+              try {
+                msg.payload = JSON.parse(msg.payload);
+              } catch (e) {
+                // Ignore parse error, let validation below handle it
+              }
+            }
+
             if (!msg || !msg.payload || typeof msg.payload !== 'object') {
               done(new Error('Payload must be an object describing your structure.'));
               return;
