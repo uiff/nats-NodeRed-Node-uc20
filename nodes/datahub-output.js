@@ -175,7 +175,10 @@ module.exports = function (RED) {
         nc = await connection.acquire();
         console.log('[DataHub Output] NATS acquired.');
 
-        await sendDefinitionUpdate(payloads, subjects);
+        // Only publish definition if we have one. Empty definitions might be rejected?
+        if (definitions.length > 0) {
+          await sendDefinitionUpdate(payloads, subjects);
+        }
 
         // Listen for Variable READ requests
         sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
