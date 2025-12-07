@@ -121,11 +121,17 @@ module.exports = function (RED) {
     let loadedSubjects = null;
 
     const sendValuesUpdate = async () => {
-      if (!nc || nc.isClosed()) return;
+      if (!nc || nc.isClosed()) {
+        console.log('[DataHub Output] Heartbeat skipped: NATS closed or missing.');
+        return;
+      }
       if (!loadedPayloads || !loadedSubjects) return;
 
       // If we have no definitions yet, nothing to send
-      if (definitions.length === 0) return;
+      if (definitions.length === 0) {
+        console.log('[DataHub Output] Heartbeat skipped: No definitions.');
+        return;
+      }
 
       const stateObj = {};
       for (const s of stateMap.values()) {
@@ -134,7 +140,7 @@ module.exports = function (RED) {
       try {
         const payload = loadedPayloads.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
         await nc.publish(loadedSubjects.varsChangedEvent(this.providerId), payload);
-        // console.log(`[DataHub Output] Heartbeat sent. State count: ${Object.keys(stateObj).length}`);
+        console.log(`[DataHub Output] Heartbeat sent. State count: ${Object.keys(stateObj).length}`);
       } catch (err) {
         this.warn(`Heartbeat error: ${err.message}`);
       }
