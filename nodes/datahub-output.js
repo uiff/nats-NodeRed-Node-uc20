@@ -65,11 +65,10 @@ module.exports = function (RED) {
     }
     // Retrieve configuration node
     this.providerId = (config.providerId || 'nodered').trim();
-    const uosConfig = RED.nodes.getNode(config.uosConfig);
-    this.definitions = config.definitions || [];
+    // this.definitions = config.definitions || [];
 
     const defMap = new Map();
-    // const definitions = []; // This line is effectively replaced by this.definitions
+    const definitions = [];
     const stateMap = new Map();
     let nextId = 100;
     let fingerprint = 0;
@@ -92,7 +91,7 @@ module.exports = function (RED) {
       stateMap.set(def.id, {
         id: def.id,
         value: defaultValue(dataType),
-        timestampNs: Date.now() * 1_000_000,
+        timestamp: BigInt(Date.now()) * 1_000_000n,
         quality: 'GOOD',
       });
       return { def, created: true };
@@ -139,7 +138,7 @@ module.exports = function (RED) {
       const stateObj = {};
       const nowNs = Date.now() * 1_000_000;
       for (const s of stateMap.values()) {
-        s.timestampNs = nowNs; // Force refresh timestamp
+        s.timestamp = BigInt(Date.now()) * 1_000_000n; // Force refresh timestamp
         stateObj[s.id] = s;
       }
       try {
@@ -264,7 +263,7 @@ module.exports = function (RED) {
               const state = {
                 id: def.id,
                 value,
-                timestampNs: Date.now() * 1_000_000,
+                timestamp: BigInt(Date.now()) * 1_000_000n,
                 quality: 'GOOD',
               };
               // states.push(state); // No longer pushing to a temporary 'states' array

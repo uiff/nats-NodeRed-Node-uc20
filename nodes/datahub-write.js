@@ -17,20 +17,36 @@ module.exports = function (RED) {
             const variable = cached.definition.variables.find(v => v.key === key);
             if (variable) {
                 node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id} (cached)`);
-                return variable.id;
+                // Return full object including type
+                return { id: variable.id, dataType: variable.dataType };
             }
         }
 
         // Query provider definition
+        let definition = null;
         try {
             const query = payloads.buildReadProviderDefinitionQuery();
-            const subject = `v1.loc.registry.providers.${providerId}.def.qry.read`;
 
-            const response = await nc.request(subject, query, { timeout: 3000 });
-            const definition = payloads.decodeProviderDefinition(response.data);
+            // Strategy 1: Direct Query (v1.loc.<provider>.def.qry.read)
+            // This is required for providers like Node-RED itself or simple Python scripts
+            const directSubject = `v1.loc.${providerId}.def.qry.read`;
+            try {
+                const response = await nc.request(directSubject, query, { timeout: 1000 });
+                definition = payloads.decodeProviderDefinition(response.data);
+            } catch (err) {
+                node.debug && node.debug(`Direct Query failed: ${err.message}`);
+            }
+
+            // Strategy 2: Registry Query (v1.loc.registry.providers.<provider>.def.qry.read)
+            // Fallback for managed providers
+            if (!definition) {
+                const registrySubject = `v1.loc.registry.providers.${providerId}.def.qry.read`;
+                const response = await nc.request(registrySubject, query, { timeout: 2000 });
+                definition = payloads.decodeProviderDefinition(response.data);
+            }
 
             if (!definition) {
-                throw new Error(`Provider ${providerId} not found or no definition returned`);
+                throw new Error(`Provider ${providerId} not found (tried Direct & Registry)`);
             }
 
             // Cache the definition
@@ -45,8 +61,8 @@ module.exports = function (RED) {
                 throw new Error(`Variable key '${key}' not found in provider ${providerId}`);
             }
 
-            node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id}`);
-            return variable.id;
+            node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id} (Type: ${variable.dataType})`);
+            return { id: variable.id, dataType: variable.dataType };
 
         } catch (err) {
             throw new Error(`Failed to resolve key '${key}': ${err.message}`);
@@ -71,6 +87,7 @@ module.exports = function (RED) {
         this.variableId = config.variableId ? parseInt(config.variableId, 10) : null;
         this.variableKey = config.variableKey?.trim();
         this.resolvedId = null; // Cached resolved ID
+        this.resolvedDataType = null; // Cached Data Type for strict writing
         this.payloads = null; // Will be loaded dynamically
 
         if (!this.providerId) {
@@ -131,10 +148,16 @@ module.exports = function (RED) {
 
                 // Resolve variable ID if needed
                 let varId = node.resolvedId;
+                let varType = node.resolvedDataType;
+
                 if (!varId && node.variableKey) {
                     node.status({ fill: 'yellow', shape: 'dot', text: 'resolving key...' });
-                    varId = await resolveVariableKey(nc, node.providerId, node.variableKey, node, node.payloads);
-                    node.resolvedId = varId; // Cache for future messages
+                    const resolved = await resolveVariableKey(nc, node.providerId, node.variableKey, node, node.payloads);
+                    varId = resolved.id;
+                    varType = resolved.dataType; // Store resolved type
+
+                    node.resolvedId = varId;
+                    node.resolvedDataType = varType;
                     node.status({ fill: 'green', shape: 'ring', text: 'ready' });
                 }
 
@@ -142,7 +165,8 @@ module.exports = function (RED) {
                 const writeCommand = node.payloads.encodeWriteVariablesCommand([
                     {
                         id: varId,
-                        value: value
+                        value: value,
+                        dataType: varType // Pass dataType for strict encoding
                     }
                 ]);
 
