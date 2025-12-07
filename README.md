@@ -1,4 +1,3 @@
-# node-red-contrib-uos-nats
 
 > **DISCLAIMER:**  
 > This is **NOT** an official product of Weidmüller Interface GmbH & Co. KG.  
