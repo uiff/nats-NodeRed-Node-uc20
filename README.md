@@ -1,8 +1,4 @@
-
-> **DISCLAIMER:**  
-> This is **NOT** an official product of Weidmüller Interface GmbH & Co. KG.  
-> This package was created privately by **IoTUeli** as a community contribution.  
-> Use at your own risk. No liability or warranty is assumed.
+# node-red-contrib-uos-nats
 
 **Unofficial Node-RED Package for Weidmüller u-OS Data Hub**
 
@@ -97,4 +93,8 @@ Publishes your own data to the Data Hub.
 ---
 
 **License:** MIT  
-**Disclaimer:** Community project, not an official Weidmüller product.
+**Disclaimer:**
+> **DISCLAIMER:**  
+> This is **NOT** an official product of Weidmüller Interface GmbH & Co. KG.  
+> This package was created privately by **IoTUeli** as a community contribution.  
+> Use at your own risk. No liability or warranty is assumed.
