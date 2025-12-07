@@ -1,37 +1,19 @@
-const { connect, StringCodec, JSONCodec } = require('nats');
-const { extractDefinition, extractVariables } = require('./lib/payloads.js');
-// Note: We might need to mock or import payloads properly if it depends on flatbuffers
-// Ideally we just dump hex if we can't decode easily without complex imports.
+const { connect, StringCodec } = require('nats');
 
-// Simple hex dump for now to confirm flow
-async function run() {
-    const nc = await connect({ servers: "192.168.10.100:49360" });
+(async () => {
+    // Connect to NATS
+    const nc = await connect({ servers: "nats://127.0.0.1:4222" });
     const sc = StringCodec();
 
-    const providerId = process.argv[2] || "nodered";
+    console.log("Snooping on u-os.hub.providers.>");
 
-    console.log(`Snooping on provider: ${providerId}`);
+    // Subscribe to everything under providers
+    const sub = nc.subscribe("u-os.hub.providers.>");
 
-    // Subscribe to Definition Changes
-    const defSub = nc.subscribe(`v1.loc.${providerId}.def.evt.changed`);
-    (async () => {
-        for await (const m of defSub) {
-            console.log(`[DEF] Received ${m.data.length} bytes. Subject: ${m.subject}`);
-            // verify fingerprint/content if possible
-        }
-    })();
-
-    // Subscribe to Variable Changes (Heartbeat)
-    const varSub = nc.subscribe(`v1.loc.${providerId}.vars.evt.changed`);
-    (async () => {
-        for await (const m of varSub) {
-            const now = new Date().toISOString();
-            console.log(`[VAR] ${now} Received ${m.data.length} bytes.`);
-        }
-    })();
-
-    console.log("Listening...");
-    await new Promise(r => { }); // Wait forever
-}
-
-run().catch(console.error);
+    for await (const m of sub) {
+        console.log(`[${m.subject}] Data Length: ${m.data.length}`);
+        // Print Hex Dump
+        const hex = Buffer.from(m.data).toString('hex');
+        console.log(`HEX: ${hex}`);
+    }
+})();

@@ -141,6 +141,11 @@ module.exports = function (RED) {
       }
       try {
         const payload = loadedPayloads.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
+
+        // Debug: Log complete HEX dump to verify flatbuffer structure
+        const hex = Buffer.from(payload).toString('hex');
+        console.log(`[DataHub Output] Packet HEX (${payload.length} bytes): ${hex}`);
+
         await nc.publish(loadedSubjects.varsChangedEvent(this.providerId), payload);
         console.log(`[DataHub Output] Heartbeat sent. State count: ${Object.keys(stateObj).length}`);
       } catch (err) {
