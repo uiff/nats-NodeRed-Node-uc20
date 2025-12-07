@@ -79,7 +79,7 @@
     {
         "id": "config-example-2",
         "type": "uos-config",
-        "host": "192.168.10.100",
+        "host": "<YOUR_UOS_IP>",
         "port": 49360,
         "clientName": "nodered",
         "scope": "hub.variables.provide hub.variables.readonly hub.variables.readwrite"

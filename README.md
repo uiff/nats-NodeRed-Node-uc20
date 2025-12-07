@@ -116,7 +116,7 @@ Process & forward to other systems
 
 Before configuring Node-RED, create an OAuth client on your u-OS device:
 
-1. Open the **u-OS Web Interface** (e.g., `http://192.168.10.100`)
+1. Open the **u-OS Web Interface** (e.g., `http://<YOUR_UOS_IP>`)
 2. Go to **u-OS Control Center** → **Identity & access** → **Clients**
 3. Click **"Add client"**
 4. Enter:
@@ -137,7 +137,7 @@ Before configuring Node-RED, create an OAuth client on your u-OS device:
 
 | Field | Example | Description |
 |-------|---------|-------------|
-| **Host** | `192.168.10.100` | IP of your u-OS device |
+| **Host** | `<YOUR_UOS_IP>` | IP of your u-OS device |
 | **Port** | `49360` | NATS port (default) |
 | **Client Name** | `nodered` | Unique name for this instance |
 | **Client ID** | `my-oauth-client` | From Step 1 |
@@ -191,7 +191,7 @@ The **DataHub - IN** node requires variable IDs (numbers). Here's how to find th
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  http://192.168.10.100/datahub/v1/providers/u_os_adm/variables
+  http://<YOUR_UOS_IP>/datahub/v1/providers/u_os_adm/variables
 ```
 
 Response shows variable definitions with IDs:
