@@ -84,7 +84,7 @@ module.exports = function (RED) {
         id: nextId += 1,
         key: normalized,
         dataType,
-        access: 'READWRITE',
+        access: 'READ_ONLY',
       };
       defMap.set(normalized, def);
       definitions.push(def);
