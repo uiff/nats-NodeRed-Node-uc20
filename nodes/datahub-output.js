@@ -135,6 +135,13 @@ module.exports = function (RED) {
         return;
       }
 
+      // Log heartbeat occasionally to prove aliveness
+      const nowMs = Date.now();
+      if (!this.lastHeartbeatLog || nowMs - this.lastHeartbeatLog > 10000) {
+        console.log(`[DataHub Output] Sending heartbeat for ${definitions.length} vars...`);
+        this.lastHeartbeatLog = nowMs;
+      }
+
       const stateObj = {};
       const nowNs = Date.now() * 1_000_000;
       for (const s of stateMap.values()) {
@@ -174,6 +181,12 @@ module.exports = function (RED) {
         sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
           callback: (err, msg) => {
             if (err) {
+              // Suppress permission violation error as it's expected for some tokens
+              // and doesn't prevent pushing data.
+              if (err.message.includes('Permissions Violation')) {
+                this.trace(`Read request permission invalid (expected for push-only): ${err.message}`);
+                return;
+              }
               this.warn(`Read request error: ${err.message}`);
               return;
             }
