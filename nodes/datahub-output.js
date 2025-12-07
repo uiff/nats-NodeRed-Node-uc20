@@ -156,6 +156,15 @@ module.exports = function (RED) {
 
         this.status({ fill: 'green', shape: 'dot', text: 'ready' });
 
+        // Periodically republish definition to ensure visibility (Heartbeat)
+        const outputHeartbeat = setInterval(() => {
+          if (nc && !nc.isClosed()) {
+            sendDefinitionUpdate(payloads, subjects).catch(err => {
+              this.warn(`Heartbeat error: ${err.message}`);
+            });
+          }
+        }, 10000); // Every 10 seconds
+
         this.on('input', async (msg, send, done) => {
           try {
             // Auto-parse string payloads
@@ -204,7 +213,7 @@ module.exports = function (RED) {
             if (definitionsChanged) {
               await sendDefinitionUpdate(payloadsMod, subjectsMod);
               // Give Data Hub a moment to process the new definition before sending values
-              await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 500));
             }
             // Convert stateMap to Object for payload builder
             const stateObj = {};
@@ -238,6 +247,7 @@ module.exports = function (RED) {
         if (sub) {
           await sub.drain();
         }
+        if (outputHeartbeat) clearInterval(outputHeartbeat);
         await connection.release();
       }
       catch (err) {
