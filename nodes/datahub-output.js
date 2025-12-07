@@ -114,12 +114,43 @@ module.exports = function (RED) {
       await nc.publish(msg.reply, response);
     };
 
+    // Store loaded modules for heartbeat
+    let loadedPayloads = null;
+    let loadedSubjects = null;
+
+    const sendValuesUpdate = async () => {
+      if (!nc || nc.isClosed() || !loadedPayloads || !loadedSubjects) return;
+
+      // If we have no definitions yet, nothing to send
+      if (definitions.length === 0) return;
+
+      const stateObj = {};
+      for (const s of stateMap.values()) {
+        stateObj[s.id] = s;
+      }
+      try {
+        const payload = loadedPayloads.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
+        await nc.publish(loadedSubjects.varsChangedEvent(this.providerId), payload);
+      } catch (err) {
+        // Silent catch for heartbeat to avoid log spam, or simple warn
+        // this.warn(`Heartbeat encode error: ${err.message}`);
+      }
+    };
+
+    const valueHeartbeat = setInterval(() => {
+      sendValuesUpdate();
+    }, 1000); // 1.0s interval matches Python SDK
+
     const start = async () => {
       try {
         this.status({ fill: 'yellow', shape: 'ring', text: 'connecting…' });
         const [payloads, subjects] = await loadModules();
+        loadedPayloads = payloads;
+        loadedSubjects = subjects;
+
         nc = await connection.acquire();
         await sendDefinitionUpdate(payloads, subjects);
+
         // Listen for Variable READ requests
         sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
           callback: (err, msg) => {
@@ -191,7 +222,6 @@ module.exports = function (RED) {
               return;
             }
 
-            const [payloadsMod, subjectsMod] = await loadModules();
             let definitionsChanged = false;
             const states = [];
 
@@ -209,26 +239,19 @@ module.exports = function (RED) {
                 timestampNs: Date.now() * 1_000_000,
                 quality: 'GOOD',
               };
-              states.push(state);
               // states.push(state); // No longer pushing to a temporary 'states' array
               stateMap.set(def.id, state); // Update the global stateMap
             });
+
             if (definitionsChanged) {
-              await sendDefinitionUpdate(payloadsMod, subjectsMod);
-              // Give Data Hub a moment to process the new definition before sending values
-              await new Promise(r => setTimeout(r, 500));
+              // If definition changed, we MUST publish definition first
+              await sendDefinitionUpdate(loadedPayloads, loadedSubjects);
+              await new Promise(r => setTimeout(r, 200));
             }
-            // Convert stateMap to Object for payload builder
-            const stateObj = {};
-            for (const s of stateMap.values()) {
-              stateObj[s.id] = s;
-            }
-            try {
-              const payload = payloadsMod.buildVariablesChangedEvent(definitions, stateObj, fingerprint);
-              await nc.publish(subjectsMod.varsChangedEvent(this.providerId), payload);
-            } catch (err) {
-              this.error(`[v0.2.15] Encoding Error: ${err.message}. State: ${JSON.stringify(stateObj)}`);
-            }
+
+            // Publish values immediately on input (don't wait for heartbeat)
+            await sendValuesUpdate();
+
             send(msg);
             done();
           }
@@ -247,6 +270,7 @@ module.exports = function (RED) {
 
     this.on('close', async (done) => {
       try {
+        if (valueHeartbeat) clearInterval(valueHeartbeat);
         if (sub) {
           await sub.drain();
         }
