@@ -16,22 +16,116 @@
             return this.name || "DataHub - Write";
         },
         paletteLabel: "DataHub - Write",
-        oneditprepare: function () {
-            // Validate: at least one of ID or Key required
-            const validateVar = () => {
-                const hasId = $('#node-input-variableId').val();
-                const hasKey = $('#node-input-variableKey').val();
-                if (!hasId && !hasKey) {
-                    $('#var-validation-error').show();
-                    return false;
-                } else {
-                    $('#var-validation-error').hide();
-                    return true;
-                }
-            };
+        // Search Button Handler
+        $('#node-config-lookup-var').click(function () {
+            const configId = $('#node-input-connection').val();
+            const providerId = $('#node-input-providerId').val();
 
-            $('#node-input-variableId, #node-input-variableKey').on('change keyup', validateVar);
-        },
+            if (!configId || configId === '_ADD_') {
+                RED.notify("Please select a valid Configuration Node first.", "error");
+                return;
+            }
+            if (!providerId) {
+                RED.notify("Please enter a Provider ID to search.", "error");
+                return;
+            }
+
+            const notification = RED.notify("Searching variables... please wait...", "info");
+
+            $.getJSON('datahub-nats/variables/' + configId + '/' + providerId, function (data) {
+                notification.close();
+
+                // Build table
+                let rows = "";
+                data.sort((a, b) => a.key.localeCompare(b.key));
+
+                data.forEach(v => {
+                    rows += `<tr class="node-dialog-var-row" style="cursor:pointer;" data-id="${v.id}" data-key="${v.key}">
+                            <td>${v.id}</td>
+                            <td>${v.key}</td>
+                            <td>${v.dataType}</td>
+                            <td>${v.access}</td>
+                        </tr>`;
+                });
+
+                const dialogHtml = `
+                        <div id="node-lookup-var-dialog" title="Select Variable">
+                            <input type="text" id="node-lookup-var-search" placeholder="Filter variables..." style="width:100%; margin-bottom:10px;">
+                            <div style="height:300px; overflow-y:scroll; border:1px solid #ccc;">
+                                <table class="table table-hover" style="width:100%">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Key</th>
+                                            <th>Type</th>
+                                            <th>Access</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="node-lookup-var-list">
+                                        ${rows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+
+                // Show Dialog (using jquery-ui which Node-RED has)
+                const $dialog = $(dialogHtml).appendTo("body");
+
+                // Filter Logic
+                $('#node-lookup-var-search').on('keyup', function () {
+                    const val = $(this).val().toLowerCase();
+                    $("#node-lookup-var-list tr").filter(function () {
+                        $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1)
+                    });
+                });
+
+                // Row Click Logic
+                $('.node-dialog-var-row').click(function () {
+                    const id = $(this).data('id');
+                    const key = $(this).data('key');
+
+                    $('#node-input-variableId').val(id);
+                    $('#node-input-variableKey').val(key);
+
+                    $dialog.dialog('close');
+                    $dialog.remove();
+                });
+
+                $dialog.dialog({
+                    modal: true,
+                    autoOpen: true,
+                    width: 600,
+                    title: `Variables for ${providerId}`,
+                    buttons: {
+                        "Cancel": function () {
+                            $(this).dialog("close");
+                            $(this).remove();
+                        }
+                    }
+                });
+
+            }).fail(function (jqxhr) {
+                notification.close();
+                RED.notify("Search failed: " + jqxhr.responseText, "error");
+            });
+        });
+
+        // Validate: at least one of ID or Key required
+        const validateVar = () => {
+            const hasId = $('#node-input-variableId').val();
+            const hasKey = $('#node-input-variableKey').val();
+            if (!hasId && !hasKey) {
+                $('#var-validation-error').show();
+                return false;
+            } else {
+                $('#var-validation-error').hide();
+                return true;
+            }
+        };
+
+        $('#node-input-variableId, #node-input-variableKey').on('change keyup', validateVar);
+    },
         oneditsave: function () {
             // Loose validation - server side will check
         }
@@ -61,7 +155,10 @@
 
     <div class="form-row">
         <label for="node-input-variableKey"><i class="fa fa-key"></i> Variable Key</label>
-        <input type="text" id="node-input-variableKey" placeholder="e.g. machine.temp (optional)">
+        <div style="display:inline-block; position:relative; width:70%;">
+            <input type="text" id="node-input-variableKey" placeholder="e.g. machine.temp (optional)" style="width:100%;">
+            <a id="node-config-lookup-var" class="btn" style="position:absolute; right:-40px; top:0;"><i class="fa fa-search"></i></a>
+        </div>
     </div>
 
     <div id="var-validation-error" class="form-tips" style="display:none; color:#c00;">
