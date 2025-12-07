@@ -1,5 +1,10 @@
 # node-red-contrib-uos-nats
 
+> **DISCLAIMER:**  
+> This is **NOT** an official product of Weidmüller Interface GmbH & Co. KG.  
+> This package was created privately by **IoTUeli** as a community contribution.  
+> Use at your own risk. No liability or warranty is assumed.
+
 **Unofficial Node-RED Package for Weidmüller u-OS Data Hub**
 
 Read, write, and provide variables via NATS protocol using **OAuth2 authentication**.
