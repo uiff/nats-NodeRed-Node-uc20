@@ -214,7 +214,14 @@ module.exports = function (RED) {
 
             // If Wildcard (empty targetIds and isWildcard=true) -> Request ALL.
             // If Specific (targetIds has items) -> Request specific.
-            const snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 2000 });
+            // Use serialRequest via Config Node to prevent concurrency issues on the connection
+            let snapshotMsg;
+            if (typeof connection.serialRequest === 'function') {
+              snapshotMsg = await connection.serialRequest(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 5000 });
+            } else {
+              // Fallback for older config nodes (should not happen if package updated correctly)
+              snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 5000 });
+            }
 
             const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
             const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
@@ -239,7 +246,9 @@ module.exports = function (RED) {
 
 
 
-        // Initial snapshot
+        // Initial snapshot with random jitter into prevent concurrency overload
+        // (If multiple nodes start simultaneously)
+        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 500) + 100));
         await performSnapshot();
 
         // Setup polling if configured

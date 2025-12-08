@@ -175,6 +175,31 @@ module.exports = function (RED) {
       return this.nc;
     };
 
+    this.requestQueue = Promise.resolve();
+
+    this.serialRequest = async (subject, payload, options = {}) => {
+      // Enqueue request to run sequentially
+      const result = this.requestQueue.then(async () => {
+        const nc = await this.ensureConnection();
+        return nc.request(subject, payload, options);
+      });
+
+      // Ensure queue does not block on failures (catch individually inside the chain logic)
+      // Actually, chaining the result directly makes the next one wait for result resolution.
+      // We want to update queue pointer to catch errors so next request still runs.
+      this.requestQueue = result.catch(() => { });
+
+      return result;
+    };
+
+    /**
+     * @deprecated Use serialRequest for concurrency safety
+     */
+    this.acquire = async () => {
+      this.users += 1;
+      return this.ensureConnection();
+    };
+
     this.getGrantedScopes = async () => {
       await this.getToken();
       return this.tokenInfo?.grantedScope || '';
