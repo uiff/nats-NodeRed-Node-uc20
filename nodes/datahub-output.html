@@ -5,7 +5,8 @@
     defaults: {
       name: { value: '' },
       connection: { type: 'uos-config', required: true },
-      providerId: { value: '', required: false }
+      providerId: { value: '', required: false },
+      heartbeatInterval: { value: 300, required: true, validate: RED.validators.number() } // Default 5 mins
     },
     inputs: 1,
     outputs: 1,
@@ -112,6 +113,11 @@
     <label for="node-input-providerId"><i class="fa fa-tag"></i> Provider ID</label>
     <!-- Input is handled dynamically in oneditprepare -->
     <input type="text" id="node-input-providerId" style="display:none;"> 
+  </div>
+  <div class="form-row">
+    <label for="node-input-heartbeatInterval"><i class="fa fa-clock-o"></i> Keep-Alive (s)</label>
+    <input type="number" id="node-input-heartbeatInterval" placeholder="300" style="width:100px;">
+    <span style="color:#777; font-size:0.9em; margin-left:10px;">(Default: 300s / 5min)</span>
   </div>
 </script>
 
