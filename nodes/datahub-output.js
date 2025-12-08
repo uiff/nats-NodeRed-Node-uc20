@@ -276,17 +276,17 @@ module.exports = function (RED) {
 
         this.status({ fill: 'green', shape: 'dot', text: 'ready' });
 
-        // Heartbeat Removed: Periodic republishing causes UI flickering/refresh in DataHub.
-        // The definition should only be sent on start or when it actually changes.
-        /*
+        // Heartbeat Restored: Provider disappears after ~20 minutes if definition is not refreshed.
+        // Set to 15 minutes (900000ms) to avoid frequent UI flickering but ensure persistence.
         const outputHeartbeat = setInterval(() => {
           if (nc && !nc.isClosed()) {
+            console.log('[DataHub Output] Sending Definition Heartbeat...');
             sendDefinitionUpdate(payloads, subjects).catch(err => {
               this.warn(`Heartbeat error: ${err.message}`);
             });
           }
-        }, 10000); // Every 10 seconds
-        */
+        }, 900000);
+
 
         this.on('input', async (msg, send, done) => {
           try {
