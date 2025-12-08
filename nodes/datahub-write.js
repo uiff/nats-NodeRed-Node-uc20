@@ -125,9 +125,9 @@ module.exports = function (RED) {
 
         // Handle incoming messages
         node.on('input', async function (msg) {
-            const value = msg.payload;
+            const rawPayload = msg.payload;
 
-            if (value === undefined || value === null) {
+            if (rawPayload === undefined || rawPayload === null) {
                 node.warn('msg.payload is empty, nothing to write');
                 return;
             }
@@ -146,44 +146,128 @@ module.exports = function (RED) {
                     return;
                 }
 
-                // Resolve variable ID if needed
-                let varId = node.resolvedId;
-                let varType = node.resolvedDataType;
+                // Prepare list of variables to write
+                let varsToWrite = [];
 
-                if (!varId && node.variableKey) {
-                    node.status({ fill: 'yellow', shape: 'dot', text: 'resolving key...' });
-                    const resolved = await resolveVariableKey(nc, node.providerId, node.variableKey, node, node.payloads);
-                    varId = resolved.id;
-                    varType = resolved.dataType; // Store resolved type
+                // MODE 1: Batch Write (Object or Array) AND no configured single variable
+                // If the user configured a Provider but NOT a Variable ID/Key, we assume Dynamic Mode.
+                // OR if the user configured a Variable, we strictly use that (Single Mode).
+                const isSingleMode = (node.variableId !== null || !!node.variableKey);
 
-                    node.resolvedId = varId;
-                    node.resolvedDataType = varType;
-                    node.status({ fill: 'green', shape: 'ring', text: 'ready' });
+                if (!isSingleMode && typeof rawPayload === 'object' && !Buffer.isBuffer(rawPayload)) {
+                    // Normalize input to Array of { key/id, value }
+                    let items = [];
+                    if (Array.isArray(rawPayload)) {
+                        // Array: [{id:1, value:val}, {key:'k', value:val}]
+                        items = rawPayload;
+                    } else {
+                        // Object: { "key": val, "id:1": val }
+                        items = Object.entries(rawPayload).map(([k, v]) => {
+                            // Detect if key is actually an ID (e.g. "5" or "id:5")? 
+                            // Easier: treat all keys as Keys, unless user passes explicit Array.
+                            // But user map might be { "1": val, "machine.temp": val }.
+                            // We can check if k is Int.
+                            const asInt = parseInt(k, 10);
+                            if (!isNaN(asInt) && String(asInt) === k) {
+                                return { id: asInt, value: v };
+                            }
+                            return { key: k, value: v };
+                        });
+                    }
+
+                    // Process Items
+                    for (const item of items) {
+                        let targetId = item.id;
+                        let targetType = item.dataType; // Optional explicit type
+
+                        if (targetId === undefined) {
+                            if (item.key) {
+                                // Resolve Key
+                                try {
+                                    const resolved = await resolveVariableKey(nc, node.providerId, item.key, node, node.payloads);
+                                    targetId = resolved.id;
+                                    // Use resolved type if not explicit
+                                    if (!targetType) targetType = resolved.dataType;
+                                } catch (e) {
+                                    node.warn(`Skipping key '${item.key}': ${e.message}`);
+                                    continue;
+                                }
+                            } else {
+                                node.warn(`Skipping item without id or key: ${JSON.stringify(item)}`);
+                                continue;
+                            }
+                        }
+
+                        varsToWrite.push({
+                            id: targetId,
+                            value: item.value,
+                            dataType: targetType
+                        });
+                    }
+
+                    if (varsToWrite.length === 0) {
+                        node.warn("No valid variables found in batch payload");
+                        return;
+                    }
+
+                } else {
+                    // MODE 2: Single Mode (Configured in Node or Primitive Payload)
+                    // If Single Mode is active, we IGNORE the structure of obj/array and write the WHOLE msg.payload 
+                    // to the configured target variable. (e.g. payload IS the value).
+                    // UNLESS strict check? No, standard behavior is payload=value.
+
+                    if (!isSingleMode) {
+                        // No variable configured and primitive payload? Error.
+                        node.error("Configuration Error: No Variable configured and payload is not a batch object.");
+                        return;
+                    }
+
+                    // Resolve variable ID if needed
+                    let varId = node.resolvedId;
+                    let varType = node.resolvedDataType;
+
+                    if (!varId && node.variableKey) {
+                        node.status({ fill: 'yellow', shape: 'dot', text: 'resolving key...' });
+                        const resolved = await resolveVariableKey(nc, node.providerId, node.variableKey, node, node.payloads);
+                        varId = resolved.id;
+                        varType = resolved.dataType;
+                        node.resolvedId = varId;
+                        node.resolvedDataType = varType;
+                        node.status({ fill: 'green', shape: 'ring', text: 'ready' });
+                    }
+
+                    varsToWrite.push({
+                        id: varId,
+                        value: rawPayload,
+                        dataType: varType
+                    });
                 }
 
-                // Build write command
-                const writeCommand = node.payloads.encodeWriteVariablesCommand([
-                    {
-                        id: varId,
-                        value: value,
-                        dataType: varType // Pass dataType for strict encoding
-                    }
-                ]);
+                // Build write command (Flatbuffer)
+                // varsToWrite: [{id, value, dataType}]
+                const writeCommand = node.payloads.encodeWriteVariablesCommand(varsToWrite);
 
                 // Publish write command
                 const subject = `v1.loc.${node.providerId}.vars.cmd.write`;
                 nc.publish(subject, writeCommand);
 
-                node.status({ fill: 'green', shape: 'dot', text: `wrote: ${value}` });
+                const count = varsToWrite.length;
+                node.status({ fill: 'green', shape: 'dot', text: `wrote ${count} var(s)` });
 
                 // Output confirmation
                 msg.payload = {
                     success: true,
                     providerId: node.providerId,
-                    variableId: varId,
-                    variableKey: node.variableKey || null,
-                    value: value
+                    count: count,
+                    firstValue: varsToWrite[0].value
                 };
+                // If single write, maintain legacy output structure for compatibility?
+                if (isSingleMode) {
+                    msg.payload.variableId = varsToWrite[0].id;
+                    msg.payload.variableKey = node.variableKey || null;
+                    msg.payload.value = varsToWrite[0].value;
+                }
+
                 node.send(msg);
 
             } catch (err) {

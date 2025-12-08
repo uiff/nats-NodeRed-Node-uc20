@@ -157,12 +157,19 @@
                 const hasId = $inputId.val();
                 const hasKey = $inputKey.val();
                 if (!hasId && !hasKey) {
-                    $('#var-validation-error').show();
+                    // Valid in Batch Mode?
+                    // We can show a hint that batch mode is active if nothing selected.
+                    $('#var-validation-error').hide();
+                    $('#batch-mode-hint').show();
                 } else {
                     $('#var-validation-error').hide();
+                    $('#batch-mode-hint').hide();
                 }
             };
             $inputId.on('change keyup', validateVar);
+
+            // Initial check
+            validateVar();
         },
         oneditsave: function () {
             // Nothing special to save, inputs are handled automatically
@@ -219,7 +226,12 @@
     <input type="hidden" id="node-input-variableKey">
 
     <div id="var-validation-error" class="form-tips" style="display:none; color:#c00; margin-top:10px;">
-        <i class="fa fa-warning"></i> <b>Please select a variable from the list.</b>
+        <i class="fa fa-warning"></i> <b>Please select a variable (or rely on Batch Mode via JSON).</b>
+    </div>
+    
+    <div id="batch-mode-hint" class="form-tips" style="display:none; color:#666; margin-top:10px;">
+        <i class="fa fa-info-circle"></i> <b>No variable selected.</b> Node enters <b>Batch Mode</b>.<br>
+        Send a JSON object (<code>{"key": value}</code>) to write variables dynamically.
     </div>
 
     <div class="form-tips" style="margin-top:10px;">
@@ -244,24 +256,29 @@
     <p>The target provider to write to (e.g., <code>u_os_adm</code>, <code>u_os_sbm</code>).</p>
     <p><b>Find it:</b> u-OS Web UI → Data Hub → Providers</p>
 
-    <h4>Select Variable</h4>
-    <p>Click <b>Load Variables</b> to browse the provider's writable variables.</p>
-    <p>Select a variable from the list to automatically target it.</p>
+    <h4>Select Variable (Single Mode)</h4>
+    <p>Click <b>Load Variables</b> to browse. Select a variable to target it specifically.</p>
+    <p>If selected, <code>msg.payload</code> is written as the value.</p>
+    
+    <h4>Batch Mode (Dynamic)</h4>
+    <p>If <b>NO variable is selected</b>, you can write multiple variables by sending a JSON object:</p>
+    <pre><code>msg.payload = {
+  "machine.status": true,
+  "machine.speed": 100
+};</code></pre>
+    <p>The node resolves keys to IDs automatically.</p>
 
     <h3>Input Format</h3>
     <p>Send the new value as <code>msg.payload</code>:</p>
 
-    <h4>Example: Toggle Boolean</h4>
-    <pre><code>msg.payload = false;
-return msg;</code></pre>
+    <h4>Example: Single Write</h4>
+    <pre><code>msg.payload = false;</code></pre>
 
-    <h4>Example: Update Number</h4>
-    <pre><code>msg.payload = 42.5;
-return msg;</code></pre>
-
-    <h4>Example: Change String</h4>
-    <pre><code>msg.payload = "stopped";
-return msg;</code></pre>
+    <h4>Example: Batch Write (JSON)</h4>
+    <pre><code>msg.payload = {
+  "channel_0.do": true,
+  "channel_1.do": false
+};</code></pre>
 
     <h3>Output</h3>
     <p>Outputs a confirmation message when the write command is sent:</p>
