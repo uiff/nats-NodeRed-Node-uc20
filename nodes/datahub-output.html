@@ -129,7 +129,8 @@
     <dt>Provider ID</dt>
     <dd>The unique ID for this provider.</dd>
     <dd><b>Auto Mode:</b> Shows the <em>Client Name</em> from your Config. Uses this name automatically.</dd>
-    <!-- Manual Mode only visible if previously configured -->
+    <dt>Keep-Alive (s)</dt>
+    <dd>Interval in seconds to refresh the provider definition. Default: <b>300s (5 min)</b>. Lower values increase traffic but might be needed for very strict networks.</dd>
   </dl>
   <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{

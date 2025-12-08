@@ -80,6 +80,7 @@ Publishes your own data to the Data Hub.
 - **Provider ID:** Leave empty to use your Client ID (Recommended).
 - **Input:** Send a JSON object: `{ "machine": { "status": "active" } }`.
 - **Auto-Discovery:** Automatically creates variable definitions based on your JSON structure.
+- **Keep-Alive:** Configurable interval (Default: 300s / 5min) to refresh definitions, preventing timeouts (Provider disappearance) while minimizing traffic.
 
 ---
 
