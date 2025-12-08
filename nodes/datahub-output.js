@@ -146,38 +146,21 @@ module.exports = function (RED) {
 
     const sendValuesUpdate = async () => {
       if (!nc || nc.isClosed()) {
-        console.log('[DataHub Output] Heartbeat skipped: NATS closed or missing.');
-        // Add event listeners for connection status changes
-        // Note: `connection` is defined in the outer scope, not `this.connection`
-        connection.on('reconnected', () => {
-          console.log('[DataHub Output] Reconnected. Re-publishing definition...');
-          this.status({ fill: 'green', shape: 'ring', text: 'reconnected' });
-          start().catch((err) => {
-            this.warn(`Re-registration failed: ${err.message}`);
-          });
-        });
-        connection.on('disconnected', () => {
-          this.status({ fill: 'red', shape: 'ring', text: 'disconnected' });
-        });
-        return; // Skip sending values if NATS is closed
+        // console.log('[DataHub Output] Heartbeat skipped: NATS closed.');
+        return;
       }
       if (!loadedPayloads || !loadedSubjects) return;
 
       // If we have no definitions yet, nothing to send
-      if (definitions.length === 0) {
-        // console.log('[DataHub Output] Heartbeat skipped: No definitions.');
-        return;
-      }
+      if (definitions.length === 0) return;
 
       // Log heartbeat occasionally to prove aliveness
       const nowMs = Date.now();
       if (!this.lastHeartbeatLog || nowMs - this.lastHeartbeatLog > 10000) {
-        console.log(`[DataHub Output] Sending heartbeat for ${definitions.length} vars...`);
         this.lastHeartbeatLog = nowMs;
       }
 
       const stateObj = {};
-      const nowNs = Date.now() * 1_000_000;
       for (const s of stateMap.values()) {
         s.timestamp = BigInt(Date.now()) * 1_000_000n; // Force refresh timestamp
         stateObj[s.id] = s;
@@ -187,7 +170,7 @@ module.exports = function (RED) {
         const subject = loadedSubjects.varsChangedEvent(this.providerId);
 
         await nc.publish(subject, payload);
-        await nc.flush(); // Ensure NATS accepts the packet (catches Permission Errors)
+        await nc.flush();
       } catch (err) {
         this.warn(`Heartbeat error: ${err.message}`);
       }
@@ -196,6 +179,18 @@ module.exports = function (RED) {
     const valueHeartbeat = setInterval(() => {
       sendValuesUpdate();
     }, 1000); // 1.0s interval matches Python SDK
+
+    // Reconnect Handler (Defined outside start to be referenced in close)
+    const onReconnect = () => {
+      console.log('[DataHub Output] Connection restored (event). Re-sending definition...');
+      this.status({ fill: 'green', shape: 'ring', text: 'reconnected' });
+      // Force definition update immediately upon reconnection
+      if (loadedPayloads && loadedSubjects) {
+        sendDefinitionUpdate(loadedPayloads, loadedSubjects).catch(err => {
+          this.warn(`Reconnect update error: ${err.message}`);
+        });
+      }
+    };
 
     const start = async () => {
       try {
@@ -209,13 +204,14 @@ module.exports = function (RED) {
         nc = await connection.acquire();
         console.log('[DataHub Output] NATS acquired.');
 
+        // ATTACH LISTENER HERE
+        connection.on('reconnected', onReconnect);
+
         if (definitions.length > 0) {
           // Initial publish
           await sendDefinitionUpdate(payloads, subjects);
 
           // Subscribe to Registry State changes
-          // The registry publishes its state (RUNNING=1) when it comes online.
-          // Providers MUST re-publish their definition when this happens.
           nc.subscribe(subjects.registryStateEvent(), {
             callback: (err, msg) => {
               if (err) return;
@@ -237,10 +233,7 @@ module.exports = function (RED) {
         sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
           callback: (err, msg) => {
             if (err) {
-              // Suppress permission violation error as it's expected for some tokens
-              // and doesn't prevent pushing data.
               if (err.message.includes('Permissions Violation')) {
-                this.trace(`Read request permission invalid (expected for push-only): ${err.message}`);
                 return;
               }
               this.warn(`Read request error: ${err.message}`);
@@ -250,29 +243,6 @@ module.exports = function (RED) {
           },
         });
         console.log('[DataHub Output] Subscribed to Read Query.');
-
-        // Listen for Definition READ requests (Discovery)
-        // SKIPPED: Permission Violation on v1.loc.<id>.def.qry.read
-        // Data Hub seems to discover providers via initial announcement or direct variable reads.
-        /*
-        const defSub = nc.subscribe(subjects.readProviderDefinitionQuery(this.providerId), {
-          callback: (err, msg) => {
-            if (err) {
-              this.warn(`Def request error: ${err.message}`);
-              return;
-            }
-            if (!msg.reply) return;
- 
-            // Send known definition
-            const { payload } = payloads.buildProviderDefinitionEvent(definitions);
-            nc.publish(msg.reply, payload);
-          }
-        });
-        */
-
-        // Track the subscription to close it later if needed (though existing code only tracks 'sub')
-        // Ideally we should track both or use a subscription manager, but for now let's hope 'sub' isn't the only one closed.
-        // Actually, looking at close(), it likely calls connection.release(). NATS connection close cleans up subs.
 
         this.status({ fill: 'green', shape: 'dot', text: 'ready' });
 
@@ -317,7 +287,6 @@ module.exports = function (RED) {
             }
 
             let definitionsChanged = false;
-            const states = [];
 
             entries.forEach(({ key, value }) => {
               // Ensure we don't accidentally send undefined/null as value if logic slipped through
@@ -364,11 +333,15 @@ module.exports = function (RED) {
 
     this.on('close', async (done) => {
       try {
+        // REMOVE LISTENER
+        if (connection && onReconnect) {
+          connection.removeListener('reconnected', onReconnect);
+        }
+
         if (valueHeartbeat) clearInterval(valueHeartbeat);
         if (sub) {
           await sub.drain();
         }
-        // if (outputHeartbeat) clearInterval(outputHeartbeat);
         await connection.release();
       }
       catch (err) {
