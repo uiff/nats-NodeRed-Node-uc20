@@ -70,7 +70,8 @@ module.exports = function (RED) {
       if (this.nc) {
         return this.nc;
       }
-      const token = await this.getToken();
+      // Token is now fetched dynamically via authenticator
+      // const token = await this.getToken();
       // Use jwtAuthenticator to allow dynamic token refresh on reconnect
       this.nc = await connect({
         servers: `nats://${this.host}:${this.port}`,
