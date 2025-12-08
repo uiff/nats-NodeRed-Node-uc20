@@ -28,13 +28,12 @@
             const $inputId = $('#node-input-variableId');
             const $inputKey = $('#node-input-variableKey');
 
-            // Styles matching Read Node (Simplified: Icon, ID, Name)
-            // Was: 60px 1fr 80px 80px
-            // New: 30px 60px 1fr
+            // Styles matching Read Node exactly
             const rowStyle = "display:grid; grid-template-columns: 30px 60px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
             const idStyle = "background:#eee; color:#555; padding:1px 4px; border-radius:3px; font-family:monospace; text-align:center; font-size:11px;";
             const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
-            const iconStyle = "text-align:center; color:#ccc;";
+
+            // Removed iconStyle, using checkbox instead
 
             let currentVariables = [];
 
@@ -48,53 +47,76 @@
 
                 vars.forEach(v => {
                     const safeId = (v.id !== undefined) ? v.id : (v.Id !== undefined ? v.Id : 'ERR');
-                    // Type/Access removed from display as per request
-
                     const isSelected = String(safeId) === String($inputId.val());
 
                     const row = $('<div>', { class: 'var-row', style: rowStyle });
-                    if (isSelected) {
-                        row.css('background', '#dcefff');
-                    }
 
-                    // Icon (Selection Indicator)
-                    const iconCol = $('<div>', { style: iconStyle }).html(isSelected ? '<i class="fa fa-dot-circle-o" style="color:#2196f3; font-size:14px;"></i>' : '<i class="fa fa-circle-o"></i>');
+                    // Checkbox Container
+                    const cbContainer = $('<div>', { style: 'text-align:center;' });
+                    // Use actual checkbox to match Read Node visual
+                    const cb = $('<input type="checkbox" class="var-checkbox">')
+                        .prop('checked', isSelected)
+                        .css('cursor', 'pointer');
+
+                    cbContainer.append(cb);
 
                     // ID
                     const idCol = $('<div>', { style: 'text-align:center;' }).append($('<span>', { style: idStyle }).text(safeId));
                     // Key
                     const keyCol = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
 
-                    row.append(iconCol).append(idCol).append(keyCol);
+                    row.append(cbContainer).append(idCol).append(keyCol);
 
-                    // Click Handler - Fill Inputs
-                    row.on('click', function () {
-                        // Reset all rows
-                        $('.var-row').css('background', 'transparent');
-                        $('.var-row i.fa').removeClass('fa-dot-circle-o').addClass('fa-circle-o').css('color', '#ccc');
-
-                        // Highlight this one
-                        $(this).css('background', '#dcefff');
-                        $(this).find('i.fa').removeClass('fa-circle-o').addClass('fa-dot-circle-o').css('color', '#2196f3');
+                    // Click Handler (Row or Checkbox)
+                    const selectRow = () => {
+                        // Uncheck all others (Single Force)
+                        $('.var-checkbox').prop('checked', false);
+                        cb.prop('checked', true);
 
                         $inputId.val(safeId !== 'ERR' ? safeId : '');
                         $inputKey.val(v.key);
-
-                        // Trigger validation visual update if needed
                         $inputId.trigger('change');
+                    };
+
+                    // Toggle behavior if clicking already selected? 
+                    // Usually for single select, clicking selected does nothing or keeps it selected.
+                    // If user clicks checkbox directly:
+                    cb.on('click', function (e) {
+                        e.stopPropagation(); // prevent row click double bubble
+                        if ($(this).prop('checked')) {
+                            selectRow();
+                        } else {
+                            // Allowing deserialize? imply batch mode if none selected
+                            $inputId.val('');
+                            $inputKey.val('');
+                            $inputId.trigger('change');
+                        }
                     });
 
-                    // Hover effect
-                    row.on('mouseenter', function () { if ($(this).css('background-color') !== 'rgb(220, 239, 255)') $(this).css('background', '#f7f7f7'); });
-                    row.on('mouseleave', function () { if ($(this).css('background-color') !== 'rgb(220, 239, 255)') $(this).css('background', 'transparent'); });
+                    row.on('click', function () {
+                        // If not checked, check it.
+                        if (!cb.prop('checked')) {
+                            selectRow();
+                        } else {
+                            // If already checked, uncheck?
+                            cb.prop('checked', false);
+                            $inputId.val('');
+                            $inputKey.val('');
+                            $inputId.trigger('change');
+                        }
+                    });
+
+                    // Hover effect (Gray, not Blue, matching Read Node)
+                    row.on('mouseenter', function () { $(this).css('background', '#f7f7f7'); });
+                    row.on('mouseleave', function () { $(this).css('background', 'transparent'); });
 
                     $listContainer.append(row);
                 });
 
-                // Scroll to selection if possible
-                const selectedRow = $listContainer.find('.var-row').filter(function () { return $(this).css('background-color') === 'rgb(220, 239, 255)'; });
-                if (selectedRow.length) {
-                    $listContainer.scrollTop(selectedRow.offset().top - $listContainer.offset().top + $listContainer.scrollTop() - 40);
+                // Scroll to selection
+                const selectedCb = $listContainer.find('.var-checkbox:checked');
+                if (selectedCb.length) {
+                    $listContainer.scrollTop(selectedCb.closest('.var-row').offset().top - $listContainer.offset().top + $listContainer.scrollTop() - 40);
                 }
             };
 
@@ -102,7 +124,7 @@
             $searchInput.on('keyup', function () {
                 const term = $(this).val().toLowerCase();
                 $listContainer.find('.var-row').each(function () {
-                    const text = $(this).find('div:nth-child(3)').text().toLowerCase(); // Key is 3rd column now
+                    const text = $(this).find('div:nth-child(3)').text().toLowerCase(); // Key is 3rd column
                     $(this).toggle(text.indexOf(term) > -1);
                 });
             });
@@ -207,7 +229,7 @@
         </div>
         
         <div style="display:grid; grid-template-columns: 30px 60px 1fr; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
-            <div style="text-align:center;"></div>
+            <div style="text-align:center;"><i class="fa fa-check-square-o"></i></div>
             <div style="text-align:center;">ID</div>
             <div style="padding-left:10px;">Name</div>
         </div>
