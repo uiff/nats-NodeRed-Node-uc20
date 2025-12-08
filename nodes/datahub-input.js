@@ -51,6 +51,11 @@ module.exports = function (RED) {
       });
     }
 
+    // Warn if manual config existed but resulted in no valid definitions (e.g. corruption or NaN IDs)
+    if (manualText.length > 0 && this.manualDefs.length === 0) {
+      this.warn("Configuration Warning: 'Selected Variables' contained data but no valid IDs could be parsed. Falling back to 'Read All'. Please re-select variables in the editor.");
+    }
+
     let nc;
     let sub;
     let closed = false;
@@ -178,32 +183,37 @@ module.exports = function (RED) {
 
           try {
             // Resolve requested variable names to IDs
+            // Resolve requested variable names to IDs
             let targetIds = [];
-            if (this.variables.length > 0) {
+            let isWildcard = (this.variables.length === 0);
+
+            if (!isWildcard) {
               // Reverse lookup: Find Def by Key
               const requestedKeys = new Set(this.variables);
-
-              // Debug Map Content before filtering
-              // if (defMap.size > 0 && providerRequestCount < 2) { 
-              //    this.warn(`DefMap Dump (Size ${defMap.size}): ${Array.from(defMap.values()).map(d=>d.key).slice(0,5).join(', ')} ...`);
-              // }
 
               for (const def of defMap.values()) {
                 if (requestedKeys.has(def.key)) {
                   targetIds.push(Number(def.id));
                 }
               }
-              if (targetIds.length === 0 && defMap.size > 0) {
-                // Warning logic ...
-                const sampleKeys = Array.from(defMap.values()).filter(d => d.type !== 'MANUAL').map(d => `'${d.key}'`).slice(0, 5).join(', ');
-                this.warn(`Snapshot Warning: None of the ${this.variables.length} configured variables were found in the Provider Definition.`);
-                if (!sampleKeys && this.manualDefs.length > 0) {
-                  this.warn('   -> Manual Definitions are configured but did not match the requested variable names? Check capitalization.');
+
+              // CRITICAL FIX: If user requested specific variables but we found NONE, 
+              // we MUST NOT send an empty list, because that would interpret as "Read All".
+              if (targetIds.length === 0) {
+                if (defMap.size > 0) {
+                  this.warn(`Snapshot Aborted: None of the ${this.variables.length} requested variables could be resolved to IDs. (Provider has ${defMap.size} vars).`);
+                } else {
+                  // If defMap is empty (Discovery failed), we might want to try reading ALL to see if we get lucky? 
+                  // Or just rely on Manual Defs fallback which would have populated defMap.
+                  // Safe default: Abort to avoid flooding if discovery failed.
+                  this.warn('Snapshot Aborted: Provider Definition not ready (no IDs resolved).');
                 }
+                return;
               }
             }
 
-            // If we have specific IDs, request only those. Otherwise request all (empty array).
+            // If Wildcard (empty targetIds and isWildcard=true) -> Request ALL.
+            // If Specific (targetIds has items) -> Request specific.
             const snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 2000 });
 
             const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);

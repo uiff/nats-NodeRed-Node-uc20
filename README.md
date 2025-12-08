@@ -10,12 +10,12 @@ Maintained by [IoTUeli](https://iotueli.ch). Source: [GitHub](https://github.com
 
 ## Nodes Overview
 
-| Node | Icon | Purpose |
-|------|------|---------|
-| **u-OS Config** | ⚙️ | Central configuration for NATS connection and OAuth credentials. |
-| **DataHub - Read** | 📥 | Subscribe to variable changes from system providers (e.g. `u_os_adm`). |
-| **DataHub - Write** | 📤 | Send commands to change variables in other providers. |
-| **DataHub - Provider** | 📡 | Create your own provider to publish variables to the Data Hub. |
+| Node | Purpose |
+|------|---------|
+| **u-OS Config** | Central configuration for NATS connection and OAuth credentials. |
+| **DataHub - Read** | Subscribe to variable changes from system providers (e.g. `u_os_adm`). |
+| **DataHub - Write** | Send commands to change variables in other providers. |
+| **DataHub - Provider** | Create your own provider to publish variables to the Data Hub. |
 
 ---
 
@@ -66,13 +66,13 @@ Import this flow to test reading and writing immediately:
 ### DataHub - Read
 Reads values from existing providers (like `u_os_adm`).
 - **Provider ID:** Name of the source provider.
-- **Variables:** Enter `Key:ID` manually.
+- **Variables:** Enter `Key:ID` manually or use the **Variables Table** to search and add variables.
 - **Trigger:** "Event" (instant update) or "Poll" (interval).
 
 ### DataHub - Write
 Changes values in other providers.
 - **Input:** Send `msg.payload` with the new value.
-- **Config:** Target `Provider ID` and `Variable ID` (or Key).
+- **Config:** Select the **Provider ID**, click **Load Variables**, and choose a variable from the list.
 
 ### DataHub - Provider
 Publishes your own data to the Data Hub.

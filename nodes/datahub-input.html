@@ -8,7 +8,8 @@
       providerId: { value: "", required: true },
       manualVariables: { value: "" },
       triggerMode: { value: "event" },
-      pollingInterval: { value: 0, validate: RED.validators.number() }
+      pollingInterval: { value: 0, validate: RED.validators.number() },
+      pollingUnit: { value: "ms" }
     },
     inputs: 1,
     outputs: 1,
@@ -21,9 +22,24 @@
     oneditprepare: function () {
       const node = this;
 
-      // --- Trigger Mode (Event/Poll) Visibility ---
+      // --- Trigger Mode & Polling Logic ---
       const $triggerMode = $('#node-input-triggerMode');
       const $pollRow = $('#poll-interval-row');
+      const $pollIntInput = $('#node-input-pollingInterval');
+      const $pollUnitInput = $('#node-input-pollingUnit');
+
+      // Convert stored ms to unit for display
+      let currentMs = node.pollingInterval || 0;
+      let uiVal = currentMs;
+      let uiUnit = node.pollingUnit || 'ms';
+
+      // Heuristic helper if unit was missing (legacy support)
+      if (!node.pollingUnit && currentMs > 0) {
+        if (currentMs >= 60000 && currentMs % 60000 === 0) { uiVal = currentMs / 60000; uiUnit = 'min'; }
+        else if (currentMs >= 1000 && currentMs % 1000 === 0) { uiVal = currentMs / 1000; uiUnit = 's'; }
+      }
+      $pollUnitInput.val(uiUnit);
+      $pollIntInput.val(uiVal);
 
       const updateTriggerVisibility = () => {
         if ($triggerMode.val() === 'poll') {
@@ -36,52 +52,166 @@
       $triggerMode.on('change', updateTriggerVisibility);
       updateTriggerVisibility();
 
-      // --- Manual Table Logic ---
-      const $manualList = $('#node-input-manual-def-list');
-      const $manualHidden = $('#node-input-manualVariables');
+      // --- Variable Selector Logic ---
+      const $fetchBtn = $('#btn-fetch-vars');
+      const $listContainer = $('#variable-list-container');
+      const $statusMsg = $('#fetch-status');
+      const $searchInput = $('#node-input-var-search');
+      const $selectAllBtn = $('#btn-select-all');
+      const $clearAllBtn = $('#btn-clear-all');
+      const $hiddenManual = $('#node-input-manualVariables');
 
-      $manualList.editableList({
-        addItem: function (row, index, data) {
-          row.css({ display: 'flex', alignItems: 'center', gap: '5px' });
+      // Styles
+      const rowStyle = "display:grid; grid-template-columns: 30px 60px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px;";
+      const idStyle = "background:#eee; color:#555; padding:1px 4px; border-radius:3px; font-family:monospace; text-align:center; font-size:11px;";
+      const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
 
-          $('<input/>', { class: 'node-input-manual-name', type: 'text', placeholder: 'Variable Name', style: 'flex:1;' })
-            .val(data.name || '')
-            .appendTo(row);
+      let currentVariables = []; // Stores {id, key, accessType, etc.}
 
-          $('<input/>', { class: 'node-input-manual-id', type: 'number', placeholder: 'ID', style: 'width:80px;' })
-            .val(data.id || '')
-            .appendTo(row);
-        },
-        removable: true,
-        header: $('<div></div>').append(
-          $.parseHTML('<div style="display:flex; gap:5px; padding-left:5px;"><div style="flex:1;">Variable Name (Key)</div><div style="width:80px;">ID (Number)</div></div>')
-        ),
-        addButton: 'Add Variable'
+      // Parse existing selection
+      const getSelectedMap = () => {
+        const selected = new Map(); // Key -> ID
+        const raw = $hiddenManual.val();
+        if (raw) {
+          raw.split(',').forEach(entry => {
+            const parts = entry.split(':');
+            if (parts.length === 2) {
+              selected.set(parts[0].trim(), parts[1].trim());
+            }
+          });
+        }
+        return selected;
+      };
+
+      const renderList = (vars) => {
+        $listContainer.empty();
+        if (!vars || vars.length === 0) {
+          $listContainer.append('<div style="padding:15px; color:#777; text-align:center;">No variables found.</div>');
+          return;
+        }
+
+        const selectedMap = getSelectedMap();
+
+        vars.forEach(v => {
+          // Robust ID handling: verify v.id exists (try 'id' and 'Id')
+          let rawId = (v.id !== undefined && v.id !== null) ? v.id : v.Id;
+          const safeId = (rawId !== undefined && rawId !== null) ? rawId : 'ERR';
+          const isSelected = selectedMap.has(v.key);
+
+          const row = $('<div>', { class: 'var-row', style: rowStyle });
+
+          const cbContainer = $('<div>', { style: 'text-align:center;' });
+          const cb = $('<input type="checkbox" class="var-checkbox">')
+            .prop('checked', isSelected)
+            .data('key', v.key)
+            .data('id', safeId);
+          cbContainer.append(cb);
+
+          const idBadge = $('<div>').append($('<span>', { style: idStyle }).text(safeId));
+          const label = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
+
+          row.append(cbContainer).append(idBadge).append(label);
+          $listContainer.append(row);
+        });
+      };
+
+      const filterList = (term) => {
+        const rows = $listContainer.find('.var-row');
+        term = term.toLowerCase();
+        rows.each(function () {
+          const text = $(this).find('div:nth-child(3)').text().toLowerCase(); // 3rd child is name
+          $(this).toggle(text.indexOf(term) > -1);
+        });
+      };
+
+      $searchInput.on('keyup', function () {
+        filterList($(this).val());
       });
 
-      const currentManual = node.manualVariables || '';
-      if (currentManual) {
-        currentManual.split(',').forEach(entry => {
-          const parts = entry.split(':');
-          if (parts.length === 2) {
-            const n = parts[0].trim();
-            const i = parts[1].trim();
-            if (n && i) $manualList.editableList('addItem', { name: n, id: i });
-          }
+      $selectAllBtn.on('click', function () {
+        $listContainer.find('.var-checkbox:visible').prop('checked', true);
+      });
+
+      $clearAllBtn.on('click', function () {
+        $listContainer.find('.var-checkbox:visible').prop('checked', false);
+      });
+
+      $fetchBtn.on('click', function () {
+        const configNodeId = $('#node-input-connection').val();
+        const providerId = $('#node-input-providerId').val();
+
+        if (!configNodeId || configNodeId === '_ADD_') {
+          $statusMsg.text('Select Config Node!').css('color', 'red');
+          return;
+        }
+        if (!providerId) {
+          $statusMsg.text('Enter Provider ID!').css('color', 'red');
+          return;
+        }
+
+        $fetchBtn.prop('disabled', true);
+        $statusMsg.text('Fetching...').css('color', 'blue');
+        $listContainer.html('<div style="padding:20px; text-align:center;"><i class="fa fa-spinner fa-spin"></i> Loading...</div>');
+
+        $.getJSON('uos/providers/' + configNodeId + '/' + providerId + '/variables', function (data) {
+          $fetchBtn.prop('disabled', false);
+          $statusMsg.text('');
+          // Sort by ID (handle 'id' or 'Id')
+          currentVariables = data.sort((a, b) => {
+            const idA = (a.id !== undefined) ? a.id : a.Id;
+            const idB = (b.id !== undefined) ? b.id : b.Id;
+            return parseInt(idA) - parseInt(idB);
+          });
+          renderList(currentVariables);
+          $statusMsg.text(`Loaded ${data.length} variables.`).css('color', 'green');
+        }).fail(function (jqxhr) {
+          $fetchBtn.prop('disabled', false);
+          $statusMsg.text('Error: ' + (jqxhr.responseJSON?.error || 'Unknown')).css('color', 'red');
+          $listContainer.empty();
         });
+      });
+
+      // Initial Render
+      const initialMap = getSelectedMap();
+      if (initialMap.size > 0 && currentVariables.length === 0) {
+        const dummyVars = [];
+        initialMap.forEach((id, key) => dummyVars.push({ id, key }));
+        // Just in case stored ID is undefined, show it so user can see it's broken
+        renderList(dummyVars);
+        $statusMsg.text('Cached variables shown. Load again to refresh.').css('color', '#888');
+      } else {
+        $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Start by clicking <b>Load Variables</b>.<br><br>Empty Selection = <b>Read ALL</b></div>');
       }
     },
     oneditsave: function () {
-      const $manualList = $('#node-input-manual-def-list');
+      // 1. Save Variables
       const items = [];
-      $manualList.editableList('items').each(function () {
-        const name = $(this).find('.node-input-manual-name').val().trim();
-        const id = $(this).find('.node-input-manual-id').val().trim();
-        if (name && id) {
-          items.push(`${name}:${id}`);
+      $('#variable-list-container').find('.var-checkbox').each(function () {
+        if ($(this).prop('checked')) {
+          const k = $(this).data('key');
+          const i = $(this).data('id');
+          // Important: Don't save if ID is 'ERR' or undefined
+          if (k && i !== undefined && i !== 'ERR') {
+            items.push(`${k}:${i}`);
+          }
         }
       });
       $('#node-input-manualVariables').val(items.join(','));
+
+      // 2. Save Polling Interval (calculate ms)
+      const val = parseInt($('#node-input-pollingInterval').val(), 10) || 0;
+      const unit = $('#node-input-pollingUnit').val();
+      let multiplier = 1;
+      if (unit === 's') multiplier = 1000;
+      if (unit === 'min') multiplier = 60000;
+
+      // We overwrite the raw value with calculated MS. 
+      // WAIT! The 'defaults' define pollingInterval. If we overwrite it here, the UI input needs to read it back correctly in oneditprepare.
+      // Actually, standard pattern is to store the MS value in 'pollingInterval' and recover the Unit in UI.
+      // But my oneditprepare logic for unit recovery was heuristic. Let's make it robust by trusting the calculation.
+      const totalMs = val * multiplier;
+      $('#node-input-pollingInterval').val(totalMs);
+      $('#node-input-pollingUnit').val(unit); // Also save the unit
     }
   });
 </script>
@@ -99,34 +229,55 @@
 
     <div class="form-row">
         <label for="node-input-providerId"><i class="fa fa-server"></i> Provider ID</label>
-        <input type="text" id="node-input-providerId" placeholder="e.g. u_os_sbm">
+        <div style="display:flex; gap:5px;">
+            <input type="text" id="node-input-providerId" placeholder="e.g. u_os_adm" style="flex:1;">
+            <button id="btn-fetch-vars" class="red-ui-button"><i class="fa fa-refresh"></i> Load Variables</button>
+        </div>
+        <div id="fetch-status" style="margin-top:5px; font-size:0.9em; min-height:1.2em;"></div>
     </div>
 
-    <div class="form-row">
-        <label><i class="fa fa-table"></i> Variables</label>
-        <div style="width:100%; margin-top:8px;">
-            <ol id="node-input-manual-def-list"></ol>
+    <div class="form-row" style="border:1px solid #ccc; padding:0; border-radius:4px; background:#fff;">
+        <div style="background:#f7f7f7; padding:8px 10px; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:bold; font-size:12px;"><i class="fa fa-list-ul"></i> Selection</span>
+            <input type="text" id="node-input-var-search" placeholder="Filter..." style="width:120px; font-size:11px; padding:2px;">
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 30px 60px 1fr; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
+            <div style="text-align:center;"><i class="fa fa-check-square-o"></i></div>
+            <div style="text-align:center;">ID</div>
+            <div style="padding-left:10px;">Name</div>
+        </div>
+
+        <div id="variable-list-container" style="height:250px; overflow-y:auto; background:white;">
+           <!-- Variables -->
+        </div>
+
+        <div style="background:#f7f7f7; padding:8px 10px; border-top:1px solid #ddd; display:flex; gap:10px;">
+            <button id="btn-select-all" class="red-ui-button red-ui-button-small">Select All</button>
+            <button id="btn-clear-all" class="red-ui-button red-ui-button-small">Clear All</button>
+            <div style="flex:1; text-align:right; color:#888; font-size:11px; padding-top:4px;">Empty = Read ALL</div>
         </div>
         <input type="hidden" id="node-input-manualVariables">
-    </div>
-
-    <div class="form-tips">
-        <i class="fa fa-info-circle"></i> Enter Variable Names and their IDs. Only these variables will be read.
     </div>
 
     <hr style="margin:15px 0;">
 
     <div class="form-row">
         <label for="node-input-triggerMode"><i class="fa fa-bolt"></i> Trigger</label>
-        <select id="node-input-triggerMode">
+        <select id="node-input-triggerMode" style="width:70%;">
             <option value="event">Event (on change)</option>
             <option value="poll">Poll (interval)</option>
         </select>
     </div>
 
     <div id="poll-interval-row" class="form-row" style="display:none;">
-        <label for="node-input-pollingInterval"><i class="fa fa-clock-o"></i> Interval (ms)</label>
-        <input type="number" id="node-input-pollingInterval" placeholder="e.g. 1000">
+        <label for="node-input-pollingInterval"><i class="fa fa-clock-o"></i> Interval</label>
+        <input type="number" id="node-input-pollingInterval" style="width:80px;" placeholder="1000">
+        <select id="node-input-pollingUnit" style="width:80px;">
+            <option value="ms">ms</option>
+            <option value="s">sec</option>
+            <option value="min">min</option>
+        </select>
     </div>
 </script>
 

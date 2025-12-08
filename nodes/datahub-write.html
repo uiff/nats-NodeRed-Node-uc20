@@ -17,118 +17,154 @@
         },
         paletteLabel: "DataHub - Write",
         oneditprepare: function () {
-            // Search Button Handler
-            $('#node-config-lookup-var').click(function () {
-                const configId = $('#node-input-connection').val();
-                const providerId = $('#node-input-providerId').val();
+            const node = this;
+            const $fetchBtn = $('#btn-fetch-vars');
+            const $listContainer = $('#variable-list-container');
+            const $statusMsg = $('#fetch-status');
+            const $searchInput = $('#node-input-var-search');
+            const $selectionDisplay = $('#selected-variable-display');
 
-                if (!configId || configId === '_ADD_') {
-                    RED.notify("Please select a valid Configuration Node first.", "error");
-                    return;
-                }
-                if (!providerId) {
-                    RED.notify("Please enter a Provider ID to search.", "error");
-                    return;
-                }
+            // Raw Inputs (Hidden)
+            const $inputId = $('#node-input-variableId');
+            const $inputKey = $('#node-input-variableKey');
 
-                const notification = RED.notify("Searching variables... please wait...", "info");
+            // Styles matching Read Node
+            const rowStyle = "display:grid; grid-template-columns: 60px 1fr 80px 80px; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
+            const idStyle = "background:#eee; color:#555; padding:1px 4px; border-radius:3px; font-family:monospace; text-align:center; font-size:11px;";
+            const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
 
-                $.getJSON('datahub-nats/variables/' + configId + '/' + providerId, function (data) {
-                    notification.close();
+            let currentVariables = [];
 
-                    // Build table
-                    let rows = "";
-                    data.sort((a, b) => a.key.localeCompare(b.key));
-
-                    data.forEach(v => {
-                        rows += `<tr class="node-dialog-var-row" style="cursor:pointer;" data-id="${v.id}" data-key="${v.key}">
-                                <td>${v.id}</td>
-                                <td>${v.key}</td>
-                                <td>${v.dataType}</td>
-                                <td>${v.access}</td>
-                            </tr>`;
-                    });
-
-                    const dialogHtml = `
-                            <div id="node-lookup-var-dialog" title="Select Variable">
-                                <input type="text" id="node-lookup-var-search" placeholder="Filter variables..." style="width:100%; margin-bottom:10px;">
-                                <div style="height:300px; overflow-y:scroll; border:1px solid #ccc;">
-                                    <table class="table table-hover" style="width:100%">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>Key</th>
-                                                <th>Type</th>
-                                                <th>Access</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="node-lookup-var-list">
-                                            ${rows}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        `;
-
-                    // Show Dialog (using jquery-ui which Node-RED has)
-                    const $dialog = $(dialogHtml).appendTo("body");
-
-                    // Filter Logic
-                    $('#node-lookup-var-search').on('keyup', function () {
-                        const val = $(this).val().toLowerCase();
-                        $("#node-lookup-var-list tr").filter(function () {
-                            $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1)
-                        });
-                    });
-
-                    // Row Click Logic
-                    $('.node-dialog-var-row').click(function () {
-                        const id = $(this).data('id');
-                        const key = $(this).data('key');
-
-                        $('#node-input-variableId').val(id);
-                        $('#node-input-variableKey').val(key);
-
-                        $dialog.dialog('close');
-                        $dialog.remove();
-                    });
-
-                    $dialog.dialog({
-                        modal: true,
-                        autoOpen: true,
-                        width: 600,
-                        title: `Variables for ${providerId}`,
-                        buttons: {
-                            "Cancel": function () {
-                                $(this).dialog("close");
-                                $(this).remove();
-                            }
-                        }
-                    });
-
-                }).fail(function (jqxhr) {
-                    notification.close();
-                    RED.notify("Search failed: " + jqxhr.responseText, "error");
-                });
-            });
-
-            // Validate: at least one of ID or Key required
-            const validateVar = () => {
-                const hasId = $('#node-input-variableId').val();
-                const hasKey = $('#node-input-variableKey').val();
-                if (!hasId && !hasKey) {
-                    $('#var-validation-error').show();
-                    return false;
+            // Helper to update display
+            const updateSelectionDisplay = (id, key) => {
+                if (id || key) {
+                    $selectionDisplay.html(`<b>${key || '?'}</b> <span style="color:#666; font-family:monospace; margin-left:10px;">(ID: ${id || '?'})</span>`);
                 } else {
-                    $('#var-validation-error').hide();
-                    return true;
+                    $selectionDisplay.html('<span style="color:#888; font-style:italic;">None selected</span>');
                 }
             };
 
-            $('#node-input-variableId, #node-input-variableKey').on('change keyup', validateVar);
+            // Render List Function
+            const renderList = (vars) => {
+                $listContainer.empty();
+                if (!vars || vars.length === 0) {
+                    $listContainer.html('<div style="padding:15px; color:#777; text-align:center;">No variables found.</div>');
+                    return;
+                }
+
+                vars.forEach(v => {
+                    const safeId = (v.id !== undefined) ? v.id : (v.Id !== undefined ? v.Id : 'ERR');
+                    const safeType = v.dataType || v.type || '-';
+                    const safeAccess = v.access || v.accessType || '-';
+
+                    const row = $('<div>', { class: 'var-row', style: rowStyle });
+
+                    // ID
+                    const idCol = $('<div>', { style: 'text-align:center;' }).append($('<span>', { style: idStyle }).text(safeId));
+                    // Key
+                    const keyCol = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
+                    // Type
+                    const typeCol = $('<div>', { style: 'font-size:10px; color:#666; padding-left:5px;' }).text(safeType);
+                    // Access
+                    const accessCol = $('<div>', { style: 'font-size:10px; color:#666; padding-left:5px;' }).text(safeAccess);
+
+                    row.append(idCol).append(keyCol).append(typeCol).append(accessCol);
+
+                    // Click Handler - Fill Inputs
+                    row.on('click', function () {
+                        $('.var-row').css('background', 'transparent');
+                        $(this).css('background', '#dcefff'); // Highlight selection
+
+                        $inputId.val(safeId !== 'ERR' ? safeId : '');
+                        $inputKey.val(v.key);
+
+                        updateSelectionDisplay(safeId, v.key);
+
+                        // Trigger validation visual update if needed
+                        $inputId.trigger('change');
+                    });
+
+                    // Hover effect
+                    row.on('mouseenter', function () { if ($(this).css('background-color') !== 'rgb(220, 239, 255)') $(this).css('background', '#f7f7f7'); });
+                    row.on('mouseleave', function () { if ($(this).css('background-color') !== 'rgb(220, 239, 255)') $(this).css('background', 'transparent'); });
+
+                    $listContainer.append(row);
+                });
+            };
+
+            // Filter Logic
+            $searchInput.on('keyup', function () {
+                const term = $(this).val().toLowerCase();
+                $listContainer.find('.var-row').each(function () {
+                    const text = $(this).find('div:nth-child(2)').text().toLowerCase(); // Key is 2nd column
+                    $(this).toggle(text.indexOf(term) > -1);
+                });
+            });
+
+            // Fetch Handler
+            $fetchBtn.on('click', function () {
+                const configNodeId = $('#node-input-connection').val();
+                const providerId = $('#node-input-providerId').val();
+
+                if (!configNodeId || configNodeId === '_ADD_') {
+                    $statusMsg.text('Select Config Node!').css('color', 'red');
+                    return;
+                }
+                if (!providerId) {
+                    $statusMsg.text('Enter Provider ID!').css('color', 'red');
+                    return;
+                }
+
+                $fetchBtn.prop('disabled', true);
+                $statusMsg.text('Fetching...').css('color', 'blue');
+                $listContainer.html('<div style="padding:20px; text-align:center;"><i class="fa fa-spinner fa-spin"></i> Loading...</div>');
+
+                $.getJSON('uos/providers/' + configNodeId + '/' + providerId + '/variables', function (data) {
+                    $fetchBtn.prop('disabled', false);
+                    $statusMsg.text('');
+
+                    // Filter: Only writable variables (User Request)
+                    // access strings come from lib/payloads.js: 'READWRITE' or 'READ_WRITE' or checking accessType
+                    const writableVars = data.filter(v => {
+                        const acc = (v.access || v.accessType || '').toUpperCase();
+                        return acc.includes('WRITE');
+                    });
+
+                    // Sort: ID ascending (User Request: "tiefste Zahl zuoberst")
+                    currentVariables = writableVars.sort((a, b) => {
+                        const idA = (a.id !== undefined) ? parseInt(a.id) : (a.Id !== undefined ? parseInt(a.Id) : Infinity);
+                        const idB = (b.id !== undefined) ? parseInt(b.id) : (b.Id !== undefined ? parseInt(b.Id) : Infinity);
+                        return idA - idB;
+                    });
+
+                    renderList(currentVariables);
+                    $statusMsg.text(`Loaded ${currentVariables.length} writable variables.`).css('color', 'green');
+                }).fail(function (jqxhr) {
+                    $fetchBtn.prop('disabled', false);
+                    $statusMsg.text('Error: ' + (jqxhr.responseJSON?.error || 'Unknown')).css('color', 'red');
+                    $listContainer.html('<div style="padding:15px; color:#c00; text-align:center;">Failed to load variables.</div>');
+                });
+            });
+
+            // Initial state
+            $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Click <b>Load Variables</b> to browse.</div>');
+
+            // Set initial display
+            updateSelectionDisplay(node.variableId, node.variableKey);
+
+            const validateVar = () => {
+                const hasId = $inputId.val();
+                const hasKey = $inputKey.val();
+                if (!hasId && !hasKey) {
+                    $('#var-validation-error').show();
+                } else {
+                    $('#var-validation-error').hide();
+                }
+            };
+            $inputId.on('change keyup', validateVar);
         },
         oneditsave: function () {
-            // Loose validation - server side will check
+            // Nothing special to save, inputs are handled automatically
         }
     });
 </script>
@@ -146,32 +182,47 @@
 
     <div class="form-row">
         <label for="node-input-providerId"><i class="fa fa-server"></i> Provider ID</label>
-        <input type="text" id="node-input-providerId" placeholder="e.g. u_os_adm">
+        <div style="display:flex; gap:5px;">
+            <input type="text" id="node-input-providerId" placeholder="e.g. u_os_adm" style="flex:1;">
+            <button id="btn-fetch-vars" class="red-ui-button"><i class="fa fa-refresh"></i> Load Variables</button>
+        </div>
+        <div id="fetch-status" style="margin-top:5px; font-size:0.9em; min-height:1.2em;"></div>
     </div>
 
-    <div class="form-row">
-        <label for="node-input-variableId"><i class="fa fa-hashtag"></i> Variable ID</label>
-        <input type="number" id="node-input-variableId" placeholder="e.g. 5 (optional)">
-    </div>
+    <!-- Variable List Section -->
+    <div class="form-row" style="border:1px solid #ccc; padding:0; border-radius:4px; background:#fff;">
+        <div style="background:#f7f7f7; padding:8px 10px; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:bold; font-size:12px;"><i class="fa fa-list-ul"></i> Select Variable</span>
+            <input type="text" id="node-input-var-search" placeholder="Filter..." style="width:120px; font-size:11px; padding:2px;">
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 60px 1fr 80px 80px; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
+            <div style="text-align:center;">ID</div>
+            <div style="padding-left:10px;">Name</div>
+            <div style="padding-left:5px;">Type</div>
+            <div style="padding-left:5px;">Access</div>
+        </div>
 
-    <div class="form-row">
-        <label for="node-input-variableKey"><i class="fa fa-key"></i> Variable Key</label>
-        <div style="display:inline-block; position:relative; width:70%;">
-            <input type="text" id="node-input-variableKey" placeholder="e.g. machine.temp (optional)" style="width:100%;">
-            <a id="node-config-lookup-var" class="btn" style="position:absolute; right:-40px; top:0;"><i class="fa fa-search"></i></a>
+        <div id="variable-list-container" style="height:200px; overflow-y:auto; background:white;">
+           <!-- Variables -->
+        </div>
+        
+        <div style="background:#f7f7f7; padding:10px; border-top:1px solid #ddd; font-size:12px; display:flex; align-items:center;">
+            <span style="font-weight:bold; margin-right:10px;">Currently Selected:</span>
+            <span id="selected-variable-display"></span>
         </div>
     </div>
+    
+    <!-- Hidden Inputs (Required by Node-RED to save state) -->
+    <input type="hidden" id="node-input-variableId">
+    <input type="hidden" id="node-input-variableKey">
 
-    <div id="var-validation-error" class="form-tips" style="display:none; color:#c00;">
-        <i class="fa fa-warning"></i> <b>Either Variable ID or Variable Key is required</b>
-    </div>
-
-    <div class="form-tips">
-        <i class="fa fa-info-circle"></i> Provide <b>either</b> Variable ID (numeric) <b>or</b> Variable Key (text). Key will be resolved to ID automatically.
+    <div id="var-validation-error" class="form-tips" style="display:none; color:#c00; margin-top:10px;">
+        <i class="fa fa-warning"></i> <b>Please select a variable from the list.</b>
     </div>
 
     <div class="form-tips" style="margin-top:10px;">
-        <i class="fa fa-info-circle"></i> Send <code>msg.payload</code> with the value to write (e.g., <code>true</code>, <code>42</code>, <code>"hello"</code>)
+        <i class="fa fa-info-circle"></i> Send <code>msg.payload</code> with the value to write.
     </div>
 </script>
 
@@ -192,9 +243,9 @@
     <p>The target provider to write to (e.g., <code>u_os_adm</code>, <code>u_os_sbm</code>).</p>
     <p><b>Find it:</b> u-OS Web UI → Data Hub → Providers</p>
 
-    <h4>Variable ID</h4>
-    <p>The numeric ID of the variable to write.</p>
-    <p><b>Find it:</b> u-OS Web UI → Data Hub → Providers → (Select Provider) → Variables tab</p>
+    <h4>Select Variable</h4>
+    <p>Click <b>Load Variables</b> to browse the provider's writable variables.</p>
+    <p>Select a variable from the list to automatically target it.</p>
 
     <h3>Input Format</h3>
     <p>Send the new value as <code>msg.payload</code>:</p>

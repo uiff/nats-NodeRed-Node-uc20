@@ -109,12 +109,22 @@ module.exports = function (RED) {
       return { def, created: true };
     };
 
-    const sendDefinitionUpdate = async (payloads, subjects) => {
-      console.log(`[DataHub Output] Publishing definition with ${definitions.length} vars...`);
-      const { payload, fingerprint: fp } = payloads.buildProviderDefinitionEvent(definitions);
-      fingerprint = fp;
-      await nc.publish(subjects.providerDefinitionChanged(this.providerId), payload);
-      console.log(`[DataHub Output] Definition published. FP: ${fp}`);
+    // --- SEND DEFINITION HELPER ---
+    const sendDefinitionUpdate = async (modPayloads, modSubjects) => {
+      if (!nc) return;
+      try {
+        const { payload, fingerprint: fp } = modPayloads.buildProviderDefinitionEvent(definitions);
+        const subject = modSubjects.providerDefinitionChanged(this.providerId);
+
+        console.log(`[DataHub Output] Publishing definition for Provider '${this.providerId}' to '${subject}'`);
+
+        fingerprint = fp;
+        await nc.publish(subject, payload);
+        await nc.flush();
+        console.log(`[DataHub Output] Definition published. FP: ${fp}`);
+      } catch (err) {
+        this.warn(`Definition update error: ${err.message}`);
+      }
     };
 
     const handleRead = async (payloads, msg) => {
@@ -137,7 +147,19 @@ module.exports = function (RED) {
     const sendValuesUpdate = async () => {
       if (!nc || nc.isClosed()) {
         console.log('[DataHub Output] Heartbeat skipped: NATS closed or missing.');
-        return;
+        // Add event listeners for connection status changes
+        // Note: `connection` is defined in the outer scope, not `this.connection`
+        connection.on('reconnected', () => {
+          console.log('[DataHub Output] Reconnected. Re-publishing definition...');
+          this.status({ fill: 'green', shape: 'ring', text: 'reconnected' });
+          start().catch((err) => {
+            this.warn(`Re-registration failed: ${err.message}`);
+          });
+        });
+        connection.on('disconnected', () => {
+          this.status({ fill: 'red', shape: 'ring', text: 'disconnected' });
+        });
+        return; // Skip sending values if NATS is closed
       }
       if (!loadedPayloads || !loadedSubjects) return;
 
@@ -187,9 +209,28 @@ module.exports = function (RED) {
         nc = await connection.acquire();
         console.log('[DataHub Output] NATS acquired.');
 
-        // Only publish definition if we have one. Empty definitions might be rejected?
         if (definitions.length > 0) {
+          // Initial publish
           await sendDefinitionUpdate(payloads, subjects);
+
+          // Subscribe to Registry State changes
+          // The registry publishes its state (RUNNING=1) when it comes online.
+          // Providers MUST re-publish their definition when this happens.
+          nc.subscribe(subjects.registryStateEvent(), {
+            callback: (err, msg) => {
+              if (err) return;
+              try {
+                const state = payloads.parseRegistryStateEvent(msg.data);
+                if (state === 1) { // 1 = RUNNING
+                  console.log('[DataHub Output] Registry is RUNNING. Re-publishing definition...');
+                  sendDefinitionUpdate(payloads, subjects);
+                }
+              } catch (e) {
+                console.warn('[DataHub Output] Registry state parse error:', e);
+              }
+            }
+          });
+          console.log('[DataHub Output] Subscribed to Registry State.');
         }
 
         // Listen for Variable READ requests
