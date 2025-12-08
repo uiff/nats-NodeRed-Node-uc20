@@ -71,8 +71,9 @@ Reads values from existing providers (like `u_os_adm`).
 
 ### DataHub - Write
 Changes values in other providers.
-- **Input:** Send `msg.payload` with the new value.
-- **Config:** Select the **Provider ID**, click **Load Variables**, and choose a variable from the list.
+- **Single Mode:** Select a variable from the list. Send `msg.payload` = value.
+- **Batch Mode:** Select NO variable (clear selection). Send `msg.payload` as a JSON object: `{"var_key": value, "var2": value}`.
+- **Strict Mode:** Automatically handles Fingerprints for strict providers (e.g. `u_os_sbm`).
 
 ### DataHub - Provider
 Publishes your own data to the Data Hub.
