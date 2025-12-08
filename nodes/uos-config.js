@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const { connect } = require('nats');
+const { connect, jwtAuthenticator } = require('nats');
 const https = require('https');
 const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly'; // hub.providers.read removed as it does not exist
 
@@ -33,6 +33,8 @@ module.exports = function (RED) {
       if (this.tokenInfo && now < this.tokenInfo.expiresAt - tokenMarginMs) {
         return this.tokenInfo.token;
       }
+      // Force refresh if expired or about to expire
+      this.log(`Retrieving new access token for ${this.clientId}`);
       const params = new URLSearchParams({
         grant_type: 'client_credentials',
         scope: this.scope,
@@ -69,9 +71,12 @@ module.exports = function (RED) {
         return this.nc;
       }
       const token = await this.getToken();
+      // Use jwtAuthenticator to allow dynamic token refresh on reconnect
       this.nc = await connect({
         servers: `nats://${this.host}:${this.port}`,
-        token,
+        authenticator: jwtAuthenticator(() => {
+          return this.getToken();
+        }),
         name: `${this.clientName}-nodered`,
         inboxPrefix: `_INBOX.${this.clientName}`,
       });
