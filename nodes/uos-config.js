@@ -73,14 +73,23 @@ module.exports = function (RED) {
       // Token is now fetched dynamically via authenticator
       // const token = await this.getToken();
       // Use jwtAuthenticator to allow dynamic token refresh on reconnect
-      this.nc = await connect({
-        servers: `nats://${this.host}:${this.port}`,
-        authenticator: jwtAuthenticator(() => {
-          return this.getToken();
-        }),
-        name: `${this.clientName}-nodered`,
-        inboxPrefix: `_INBOX.${this.clientName}`,
-      });
+      // Use jwtAuthenticator to allow dynamic token refresh on reconnect
+      try {
+        this.nc = await connect({
+          servers: `nats://${this.host}:${this.port}`,
+          authenticator: async () => {
+            const t = await this.getToken();
+            return { auth_token: t };
+          },
+          name: `${this.clientName}-nodered`,
+          inboxPrefix: `_INBOX.${this.clientName}`,
+          maxReconnectAttempts: -1, // Infinite reconnects
+          reconnectTimeWait: 2000,
+        });
+      } catch (e) {
+        this.error(`NATS connect failed: ${e.message}`);
+        throw e;
+      }
       this.nc.closed().then(() => {
         this.nc = null;
       }).catch(() => {
