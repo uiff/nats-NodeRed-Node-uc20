@@ -8,18 +8,14 @@ const providerCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 module.exports = function (RED) {
-    async function resolveVariableKey(nc, providerId, key, node, payloads) {
+    // Helper to get or fetch provider definition
+    async function getProviderDefinition(nc, providerId, node, payloads) {
         const cacheKey = `${providerId}`;
         const cached = providerCache.get(cacheKey);
 
         // Check cache
         if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
-            const variable = cached.definition.variables.find(v => v.key === key);
-            if (variable) {
-                node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id} (cached)`);
-                // Return full object including type
-                return { id: variable.id, dataType: variable.dataType, fingerprint: cached.definition.fingerprint };
-            }
+            return cached.definition;
         }
 
         // Query provider definition
@@ -28,7 +24,6 @@ module.exports = function (RED) {
             const query = payloads.buildReadProviderDefinitionQuery();
 
             // Strategy 1: Direct Query (v1.loc.<provider>.def.qry.read)
-            // This is required for providers like Node-RED itself or simple Python scripts
             const directSubject = `v1.loc.${providerId}.def.qry.read`;
             try {
                 const response = await nc.request(directSubject, query, { timeout: 1000 });
@@ -38,7 +33,6 @@ module.exports = function (RED) {
             }
 
             // Strategy 2: Registry Query (v1.loc.registry.providers.<provider>.def.qry.read)
-            // Fallback for managed providers
             if (!definition) {
                 const registrySubject = `v1.loc.registry.providers.${providerId}.def.qry.read`;
                 const response = await nc.request(registrySubject, query, { timeout: 2000 });
@@ -55,6 +49,17 @@ module.exports = function (RED) {
                 timestamp: Date.now()
             });
 
+            return definition;
+
+        } catch (err) {
+            throw new Error(`Failed to fetch definition for '${providerId}': ${err.message}`);
+        }
+    }
+
+    async function resolveVariableKey(nc, providerId, key, node, payloads) {
+        try {
+            const definition = await getProviderDefinition(nc, providerId, node, payloads);
+
             // Find variable by key
             const variable = definition.variables.find(v => v.key === key);
             if (!variable) {
@@ -68,6 +73,7 @@ module.exports = function (RED) {
             throw new Error(`Failed to resolve key '${key}': ${err.message}`);
         }
     }
+
 
     function DataHubWriteNode(config) {
         RED.nodes.createNode(this, config);
@@ -218,6 +224,38 @@ module.exports = function (RED) {
                     let varId = node.resolvedId;
                     let varType = node.resolvedDataType;
 
+                    // Logic to ensure we have a fingerprint (critical for strict providers)
+                    // If we have an ID but no fingerprint, we must fetch the definition.
+                    if (varId && (node.resolvedFingerprint === BigInt(0) || !node.resolvedFingerprint)) {
+                        try {
+                            node.status({ fill: 'yellow', shape: 'dot', text: 'fetching definition...' });
+                            // Reuse resolveVariableKey logic but just to get definition? 
+                            // We can't use resolveVariableKey easily if we don't have a key.
+                            // But we can peek into the cache directly or force a lookup.
+                            // Let's call a simplified lookup.
+
+                            // We don't have a dedicated function for "getDefinition", so we construct it or assume key is available?
+                            // If user selected from list, we might NOT have the key in config (if legacy)? 
+                            // But usually we do.
+                            // If we don't have key, we can matches by ID.
+
+                            const definitions = await getProviderDefinition(nc, node.providerId, node, node.payloads);
+                            node.resolvedFingerprint = definitions.fingerprint;
+                            currentFingerprint = definitions.fingerprint;
+
+                            // Optional: Verify ID matches and get Type
+                            const foundVar = definitions.variables.find(v => v.id === varId);
+                            if (foundVar) {
+                                varType = foundVar.dataType;
+                                node.resolvedDataType = varType; // update cache
+                            }
+
+                        } catch (e) {
+                            node.warn(`Could not fetch fingerprint for provider ${node.providerId}: ${e.message}`);
+                            // Non-fatal? If strict, write will fail. If not, 0 might work.
+                        }
+                    }
+
                     if (!varId && node.variableKey) {
                         node.status({ fill: 'yellow', shape: 'dot', text: 'resolving key...' });
                         const resolved = await resolveVariableKey(nc, node.providerId, node.variableKey, node, node.payloads);
@@ -230,14 +268,6 @@ module.exports = function (RED) {
                         currentFingerprint = resolved.fingerprint;
 
                         node.status({ fill: 'green', shape: 'ring', text: 'ready' });
-                    } else if (varId) {
-                        // If we are using a manual ID, we might have resolved fingerprint earlier?
-                        // If not, we try to resolve if cache exists? To get logic for Fingerprint.
-                        // But if user provided ID manually, we don't have a lookup trigger.
-                        // We might default to 0.
-                        // OR we could lazily fetch definition just for Fingerprint?
-                        // For now, let's leave it as 0 if manual ID is used without key.
-                        // But if we resolved earlier, we have it.
                     }
 
                     varsToWrite.push({
