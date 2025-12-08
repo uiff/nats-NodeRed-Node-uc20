@@ -244,6 +244,7 @@ module.exports = function (RED) {
           meta.variables.forEach((v, i) => {
             if (v.id === undefined && v.Id === undefined) {
               v.id = i;
+              v.missingId = true;
             }
           });
 
