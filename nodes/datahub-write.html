@@ -124,10 +124,11 @@
                     $statusMsg.text('');
 
                     // Filter: Only writable variables (User Request)
-                    // access strings come from lib/payloads.js: 'READWRITE' or 'READ_WRITE' or checking accessType
+                    // If access is missing (fallback mode), we SHOW it to be safe (let user try).
                     const writableVars = data.filter(v => {
                         const acc = (v.access || v.accessType || '').toUpperCase();
-                        return acc.includes('WRITE');
+                        // Show if explicitly Writable OR if access info is missing entirely
+                        return acc.includes('WRITE') || acc === '';
                     });
 
                     // Sort: ID ascending (User Request: "tiefste Zahl zuoberst")
