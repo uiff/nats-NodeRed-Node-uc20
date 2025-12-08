@@ -156,4 +156,17 @@
   }
 }</pre>
   <p>becomes variables <code>machine.status</code> and <code>machine.details.temp</code> in the Data Hub.</p>
+
+  <h3>Advanced: Manual Quality & Timestamp</h3>
+  <p>You can override the quality and timestamp by sending a value object instead of a raw value:</p>
+<pre>{
+  "machine": {
+    "temp": {
+        "value": 45.2,
+        "quality": "BAD",
+        "timestamp": 1712000000000
+    }
+  }
+}</pre>
+  <p>Supported Qualities: <code>GOOD</code>, <code>BAD</code>, <code>UNCERTAIN</code>.</p>
 </script>

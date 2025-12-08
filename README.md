@@ -80,7 +80,12 @@ Publishes your own data to the Data Hub.
 - **Provider ID:** Leave empty to use your Client ID (Recommended).
 - **Input:** Send a JSON object: `{ "machine": { "status": "active" } }`.
 - **Auto-Discovery:** Automatically creates variable definitions based on your JSON structure.
-- **Keep-Alive:** Configurable interval (Default: 300s / 5min) to refresh definitions, preventing timeouts (Provider disappearance) while minimizing traffic.
+- **Bi-Directional:** Enable "Allow external writes" to let other apps write to your variables. Changes are emitted continuously on the **2nd Output**.
+- **Keep-Alive:** Configurable interval (Default: 300s / 5min).
+- **Quality & Timestamp:** Override metadata by sending an object:
+  ```json
+  { "temp": { "value": 23.5, "quality": "BAD", "timestamp": 1712000000 } }
+  ```
 
 ---
 

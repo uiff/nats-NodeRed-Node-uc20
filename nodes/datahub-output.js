@@ -33,7 +33,20 @@ const defaultValue = (type) => {
 const flattenPayload = (value, prefix = '') => {
   const entries = [];
   const path = (key) => (prefix ? `${prefix}.${key}` : key);
+
+  // Extended Value Object Detection:
+  // If object has 'value' AND ('quality' OR 'timestamp'), treat as single leaf with metadata.
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    if ('value' in value && ('quality' in value || 'timestamp' in value)) {
+      entries.push({
+        key: prefix || 'value', // If root is the object
+        value: value.value,
+        quality: value.quality,
+        timestamp: value.timestamp
+      });
+      return entries;
+    }
+
     Object.entries(value).forEach(([key, val]) => {
       if (val !== undefined) {
         entries.push(...flattenPayload(val, path(key)));
@@ -363,7 +376,8 @@ module.exports = function (RED) {
 
             let definitionsChanged = false;
 
-            entries.forEach(({ key, value }) => {
+            entries.forEach((entry) => {
+              const { key, value } = entry;
               // Ensure we don't accidentally send undefined/null as value if logic slipped through
               if (value === undefined || value === null) return;
 
@@ -371,11 +385,30 @@ module.exports = function (RED) {
               if (created) {
                 definitionsChanged = true;
               }
+
+              // Handle custom timestamp
+              let ts = BigInt(Date.now()) * 1_000_000n;
+              if (entry.timestamp) {
+                try {
+                  // Support Date object or number (ms)
+                  const ms = (entry.timestamp instanceof Date) ? entry.timestamp.getTime() : Number(entry.timestamp);
+                  if (!isNaN(ms)) {
+                    ts = BigInt(Math.floor(ms)) * 1_000_000n;
+                  }
+                } catch (e) { /* ignore */ }
+              }
+
+              // Handle custom quality
+              let qual = 'GOOD';
+              if (entry.quality) {
+                qual = String(entry.quality).toUpperCase();
+              }
+
               const state = {
                 id: def.id,
                 value,
-                timestamp: BigInt(Date.now()) * 1_000_000n,
-                quality: 'GOOD',
+                timestamp: ts,
+                quality: qual,
               };
               // states.push(state); // No longer pushing to a temporary 'states' array
               stateMap.set(def.id, state); // Update the global stateMap
