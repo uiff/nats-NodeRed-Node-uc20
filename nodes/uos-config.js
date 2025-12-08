@@ -79,7 +79,7 @@ module.exports = function (RED) {
           servers: `nats://${this.host}:${this.port}`,
           authenticator: async () => {
             const t = await this.getToken();
-            return { auth_token: t };
+            return { token: t };
           },
           name: `${this.clientName}-nodered`,
           inboxPrefix: `_INBOX.${this.clientName}`,
