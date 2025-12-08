@@ -136,7 +136,7 @@
     <h3>Quick Start</h3>
     <ol>
         <li>Select a <b>u-OS Config</b> node (create one if needed)</li>
-        <li>Enter the <b>Provider ID</b> (e.g. <code>u_os_sbm</code>, <code>hub</code>)</li>
+        <li>Enter the <b>Provider ID</b> (e.g. <code>u_os_adm</code>)</li>
         <li>Add variables using the <b>Variables Table</b></li>
         <li>Deploy and send a message to the input port to trigger a read</li>
     </ol>
@@ -155,8 +155,7 @@
     <p><b>How to find it:</b></p>
     <ul>
         <li><b>Web UI:</b> u-Control → Data Hub → Providers → Note the Provider ID</li>
-        <li><b>Python:</b> Check your <code>config.py</code> → <code>PROVIDER_ID</code></li>
-        <li><b>Common examples:</b> <code>u_os_sbm</code>, <code>hub</code>, <code>custom-provider</code></li>
+        <li><b>Common examples:</b> <code>u_os_adm</code>, <code>hub</code>, <code>custom-provider</code></li>
     </ul>
 
     <h4>3. Variables Table</h4>
@@ -166,21 +165,14 @@
     
     <h5>Finding Variable IDs:</h5>
     
-    <h6>Option A: From Python Config</h6>
-    <pre><code>VARIABLE_DEFINITIONS = [
-    {"id": 0, "key": "manufacturer_name", ...},
-    {"id": 2, "key": "machine.temp", ...}
-]</code></pre>
-    <p>→ Use these IDs!</p>
-
-    <h6>Option B: From u-Control Web UI</h6>
+    <h6>Option A: From u-Control Web UI (Recommended)</h6>
     <ol>
         <li>Go to <b>Data Hub</b> → <b>Providers</b> → Select your provider</li>
         <li>Click <b>Variables</b></li>
         <li>Note the <b>ID</b> column (usually 0, 1, 2, ...)</li>
     </ol>
 
-    <h6>Option C: From REST API</h6>
+    <h6>Option B: From REST API</h6>
     <pre><code>curl -H "Authorization: Bearer $TOKEN" \
   http://&lt;host&gt;/datahub/v1/providers/&lt;providerId&gt;/variables</code></pre>
 
@@ -206,7 +198,7 @@
   "type": "snapshot",
   "variables": [
     {
-      "providerId": "u_os_sbm",
+      "providerId": "u_os_adm",
       "id": 0,
       "key": "manufacturer_name",
       "value": "Weidmüller",
@@ -237,7 +229,7 @@
     </ul>
     <p><b>What to use instead:</b></p>
     <ul>
-        <li>Read from <b>system providers</b> (e.g. <code>u_os_sbm</code>, <code>hub</code>)</li>
+        <li>Read from <b>system providers</b> (e.g. <code>u_os_adm</code>, <code>hub</code>)</li>
         <li>Read from <b>other apps/devices</b> (not your own Node-RED)</li>
     </ul>
 
