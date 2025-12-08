@@ -22,27 +22,21 @@
             const $listContainer = $('#variable-list-container');
             const $statusMsg = $('#fetch-status');
             const $searchInput = $('#node-input-var-search');
-            const $selectionDisplay = $('#selected-variable-display');
+            const $selectionDisplay = $('#selected-variable-display'); // Will be removed in HTML, but reference might exist in legacy code if not careful. Removed from logic below.
 
             // Raw Inputs (Hidden)
             const $inputId = $('#node-input-variableId');
             const $inputKey = $('#node-input-variableKey');
 
-            // Styles matching Read Node
-            const rowStyle = "display:grid; grid-template-columns: 60px 1fr 80px 80px; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
+            // Styles matching Read Node (Simplified: Icon, ID, Name)
+            // Was: 60px 1fr 80px 80px
+            // New: 30px 60px 1fr
+            const rowStyle = "display:grid; grid-template-columns: 30px 60px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
             const idStyle = "background:#eee; color:#555; padding:1px 4px; border-radius:3px; font-family:monospace; text-align:center; font-size:11px;";
             const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
+            const iconStyle = "text-align:center; color:#ccc;";
 
             let currentVariables = [];
-
-            // Helper to update display
-            const updateSelectionDisplay = (id, key) => {
-                if (id || key) {
-                    $selectionDisplay.html(`<b>${key || '?'}</b> <span style="color:#666; font-family:monospace; margin-left:10px;">(ID: ${id || '?'})</span>`);
-                } else {
-                    $selectionDisplay.html('<span style="color:#888; font-style:italic;">None selected</span>');
-                }
-            };
 
             // Render List Function
             const renderList = (vars) => {
@@ -54,31 +48,37 @@
 
                 vars.forEach(v => {
                     const safeId = (v.id !== undefined) ? v.id : (v.Id !== undefined ? v.Id : 'ERR');
-                    const safeType = v.dataType || v.type || '-';
-                    const safeAccess = v.access || v.accessType || '-';
+                    // Type/Access removed from display as per request
+
+                    const isSelected = String(safeId) === String($inputId.val());
 
                     const row = $('<div>', { class: 'var-row', style: rowStyle });
+                    if (isSelected) {
+                        row.css('background', '#dcefff');
+                    }
+
+                    // Icon (Selection Indicator)
+                    const iconCol = $('<div>', { style: iconStyle }).html(isSelected ? '<i class="fa fa-dot-circle-o" style="color:#2196f3; font-size:14px;"></i>' : '<i class="fa fa-circle-o"></i>');
 
                     // ID
                     const idCol = $('<div>', { style: 'text-align:center;' }).append($('<span>', { style: idStyle }).text(safeId));
                     // Key
                     const keyCol = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
-                    // Type
-                    const typeCol = $('<div>', { style: 'font-size:10px; color:#666; padding-left:5px;' }).text(safeType);
-                    // Access
-                    const accessCol = $('<div>', { style: 'font-size:10px; color:#666; padding-left:5px;' }).text(safeAccess);
 
-                    row.append(idCol).append(keyCol).append(typeCol).append(accessCol);
+                    row.append(iconCol).append(idCol).append(keyCol);
 
                     // Click Handler - Fill Inputs
                     row.on('click', function () {
+                        // Reset all rows
                         $('.var-row').css('background', 'transparent');
-                        $(this).css('background', '#dcefff'); // Highlight selection
+                        $('.var-row i.fa').removeClass('fa-dot-circle-o').addClass('fa-circle-o').css('color', '#ccc');
+
+                        // Highlight this one
+                        $(this).css('background', '#dcefff');
+                        $(this).find('i.fa').removeClass('fa-circle-o').addClass('fa-dot-circle-o').css('color', '#2196f3');
 
                         $inputId.val(safeId !== 'ERR' ? safeId : '');
                         $inputKey.val(v.key);
-
-                        updateSelectionDisplay(safeId, v.key);
 
                         // Trigger validation visual update if needed
                         $inputId.trigger('change');
@@ -90,13 +90,19 @@
 
                     $listContainer.append(row);
                 });
+
+                // Scroll to selection if possible
+                const selectedRow = $listContainer.find('.var-row').filter(function () { return $(this).css('background-color') === 'rgb(220, 239, 255)'; });
+                if (selectedRow.length) {
+                    $listContainer.scrollTop(selectedRow.offset().top - $listContainer.offset().top + $listContainer.scrollTop() - 40);
+                }
             };
 
             // Filter Logic
             $searchInput.on('keyup', function () {
                 const term = $(this).val().toLowerCase();
                 $listContainer.find('.var-row').each(function () {
-                    const text = $(this).find('div:nth-child(2)').text().toLowerCase(); // Key is 2nd column
+                    const text = $(this).find('div:nth-child(3)').text().toLowerCase(); // Key is 3rd column now
                     $(this).toggle(text.indexOf(term) > -1);
                 });
             });
@@ -123,15 +129,13 @@
                     $fetchBtn.prop('disabled', false);
                     $statusMsg.text('');
 
-                    // Filter: Only writable variables (User Request)
-                    // If access is missing (fallback mode), we SHOW it to be safe (let user try).
+                    // Filter: Only writable variables
                     const writableVars = data.filter(v => {
                         const acc = (v.access || v.accessType || '').toUpperCase();
-                        // Show if explicitly Writable OR if access info is missing entirely
                         return acc.includes('WRITE') || acc === '';
                     });
 
-                    // Sort: ID ascending (User Request: "tiefste Zahl zuoberst")
+                    // Sort: ID ascending
                     currentVariables = writableVars.sort((a, b) => {
                         const idA = (a.id !== undefined) ? parseInt(a.id) : (a.Id !== undefined ? parseInt(a.Id) : Infinity);
                         const idB = (b.id !== undefined) ? parseInt(b.id) : (b.Id !== undefined ? parseInt(b.Id) : Infinity);
@@ -150,15 +154,13 @@
             // Initial state
             $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Click <b>Load Variables</b> to browse.</div>');
 
-            // Set initial display
-            updateSelectionDisplay(node.variableId, node.variableKey);
+            // Set initial display (Removed updateSelectionDisplay call)
+            // But we might want to manually populate inputs if they are empty? No, defaults handle that.
 
             const validateVar = () => {
                 const hasId = $inputId.val();
                 const hasKey = $inputKey.val();
                 if (!hasId && !hasKey) {
-                    // Valid in Batch Mode?
-                    // We can show a hint that batch mode is active if nothing selected.
                     $('#var-validation-error').hide();
                     $('#batch-mode-hint').show();
                 } else {
@@ -172,7 +174,7 @@
             validateVar();
         },
         oneditsave: function () {
-            // Nothing special to save, inputs are handled automatically
+            // Nothing special to save
         }
     });
 </script>
@@ -204,20 +206,14 @@
             <input type="text" id="node-input-var-search" placeholder="Filter..." style="width:120px; font-size:11px; padding:2px;">
         </div>
         
-        <div style="display:grid; grid-template-columns: 60px 1fr 80px 80px; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
+        <div style="display:grid; grid-template-columns: 30px 60px 1fr; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
+            <div style="text-align:center;"></div>
             <div style="text-align:center;">ID</div>
             <div style="padding-left:10px;">Name</div>
-            <div style="padding-left:5px;">Type</div>
-            <div style="padding-left:5px;">Access</div>
         </div>
 
         <div id="variable-list-container" style="height:200px; overflow-y:auto; background:white;">
            <!-- Variables -->
-        </div>
-        
-        <div style="background:#f7f7f7; padding:10px; border-top:1px solid #ddd; font-size:12px; display:flex; align-items:center;">
-            <span style="font-weight:bold; margin-right:10px;">Currently Selected:</span>
-            <span id="selected-variable-display"></span>
         </div>
     </div>
     
