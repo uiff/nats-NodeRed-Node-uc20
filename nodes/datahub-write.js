@@ -18,7 +18,7 @@ module.exports = function (RED) {
             if (variable) {
                 node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id} (cached)`);
                 // Return full object including type
-                return { id: variable.id, dataType: variable.dataType };
+                return { id: variable.id, dataType: variable.dataType, fingerprint: cached.definition.fingerprint };
             }
         }
 
@@ -62,7 +62,7 @@ module.exports = function (RED) {
             }
 
             node.debug && node.debug(`Key '${key}' resolved to ID ${variable.id} (Type: ${variable.dataType})`);
-            return { id: variable.id, dataType: variable.dataType };
+            return { id: variable.id, dataType: variable.dataType, fingerprint: definition.fingerprint };
 
         } catch (err) {
             throw new Error(`Failed to resolve key '${key}': ${err.message}`);
@@ -88,6 +88,7 @@ module.exports = function (RED) {
         this.variableKey = config.variableKey?.trim();
         this.resolvedId = null; // Cached resolved ID
         this.resolvedDataType = null; // Cached Data Type for strict writing
+        this.resolvedFingerprint = BigInt(0); // Cached Fingerprint
         this.payloads = null; // Will be loaded dynamically
 
         if (!this.providerId) {
@@ -97,11 +98,7 @@ module.exports = function (RED) {
         }
 
         // Validate: either ID or Key required
-        if (!this.variableId && !this.variableKey) {
-            node.error('Either Variable ID or Variable Key is required');
-            node.status({ fill: 'red', shape: 'dot', text: 'missing variable' });
-            return;
-        }
+        // Relaxed validation for Batch Mode (handled in Input)
 
         // If ID provided and valid, use it
         if (this.variableId && !isNaN(this.variableId)) {
@@ -110,10 +107,6 @@ module.exports = function (RED) {
         } else if (this.variableKey) {
             // Key provided - will resolve on first message
             node.status({ fill: 'yellow', shape: 'ring', text: 'key needs resolution' });
-        } else {
-            node.error('Invalid Variable ID');
-            node.status({ fill: 'red', shape: 'dot', text: 'invalid ID' });
-            return;
         }
 
         // Load payloads module dynamically
@@ -148,6 +141,7 @@ module.exports = function (RED) {
 
                 // Prepare list of variables to write
                 let varsToWrite = [];
+                let currentFingerprint = node.resolvedFingerprint || BigInt(0);
 
                 // MODE 1: Batch Write (Object or Array) AND no configured single variable
                 // If the user configured a Provider but NOT a Variable ID/Key, we assume Dynamic Mode.
@@ -165,8 +159,6 @@ module.exports = function (RED) {
                         items = Object.entries(rawPayload).map(([k, v]) => {
                             // Detect if key is actually an ID (e.g. "5" or "id:5")? 
                             // Easier: treat all keys as Keys, unless user passes explicit Array.
-                            // But user map might be { "1": val, "machine.temp": val }.
-                            // We can check if k is Int.
                             const asInt = parseInt(k, 10);
                             if (!isNaN(asInt) && String(asInt) === k) {
                                 return { id: asInt, value: v };
@@ -184,10 +176,14 @@ module.exports = function (RED) {
                             if (item.key) {
                                 // Resolve Key
                                 try {
+                                    // Resolving individual keys for batch... this might be slow if uncached.
+                                    // Optimization: resolveVariableKey uses cache.
                                     const resolved = await resolveVariableKey(nc, node.providerId, item.key, node, node.payloads);
                                     targetId = resolved.id;
                                     // Use resolved type if not explicit
                                     if (!targetType) targetType = resolved.dataType;
+                                    // Use the fingerprint from the LAST resolution (assuming they come from same provider version)
+                                    if (resolved.fingerprint) currentFingerprint = resolved.fingerprint;
                                 } catch (e) {
                                     node.warn(`Skipping key '${item.key}': ${e.message}`);
                                     continue;
@@ -211,11 +207,7 @@ module.exports = function (RED) {
                     }
 
                 } else {
-                    // MODE 2: Single Mode (Configured in Node or Primitive Payload)
-                    // If Single Mode is active, we IGNORE the structure of obj/array and write the WHOLE msg.payload 
-                    // to the configured target variable. (e.g. payload IS the value).
-                    // UNLESS strict check? No, standard behavior is payload=value.
-
+                    // MODE 2: Single Mode
                     if (!isSingleMode) {
                         // No variable configured and primitive payload? Error.
                         node.error("Configuration Error: No Variable configured and payload is not a batch object.");
@@ -231,9 +223,21 @@ module.exports = function (RED) {
                         const resolved = await resolveVariableKey(nc, node.providerId, node.variableKey, node, node.payloads);
                         varId = resolved.id;
                         varType = resolved.dataType;
+
                         node.resolvedId = varId;
                         node.resolvedDataType = varType;
+                        node.resolvedFingerprint = resolved.fingerprint;
+                        currentFingerprint = resolved.fingerprint;
+
                         node.status({ fill: 'green', shape: 'ring', text: 'ready' });
+                    } else if (varId) {
+                        // If we are using a manual ID, we might have resolved fingerprint earlier?
+                        // If not, we try to resolve if cache exists? To get logic for Fingerprint.
+                        // But if user provided ID manually, we don't have a lookup trigger.
+                        // We might default to 0.
+                        // OR we could lazily fetch definition just for Fingerprint?
+                        // For now, let's leave it as 0 if manual ID is used without key.
+                        // But if we resolved earlier, we have it.
                     }
 
                     varsToWrite.push({
@@ -244,8 +248,8 @@ module.exports = function (RED) {
                 }
 
                 // Build write command (Flatbuffer)
-                // varsToWrite: [{id, value, dataType}]
-                const writeCommand = node.payloads.encodeWriteVariablesCommand(varsToWrite);
+                // Pass the fingerprint (defaults to 0 if not found)
+                const writeCommand = node.payloads.encodeWriteVariablesCommand(varsToWrite, currentFingerprint);
 
                 // Publish write command
                 const subject = `v1.loc.${node.providerId}.vars.cmd.write`;
