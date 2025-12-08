@@ -66,7 +66,7 @@ Import this flow to test reading and writing immediately:
 ### DataHub - Read
 Reads values from existing providers (like `u_os_adm`).
 - **Provider ID:** Name of the source provider.
-- **Variables:** Enter `Key:ID` manually or use the **Variables Table** to search and add variables.
+- **Variables:** Use **Load Variables** to browse and select variables.
 - **Trigger:** "Event" (instant update) or "Poll" (interval).
 
 ### DataHub - Write
@@ -86,8 +86,11 @@ Publishes your own data to the Data Hub.
 
 - **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.
 - **Connection Failed?** Check Host/IP and ensure Client ID/Secret are correct.
-- **Variable not found?** IDs in Node-RED must match the IDs in the u-OS Data Hub Web UI.
+- **Variable ID "undefined" or "ERR"?** 
+  - Ensure the provider is publishing correct definitions.
+  - The nodes attempt to autofix missing IDs by using the variable index (0, 1, 2...) if the provider supports it.
 - **Write not working?** Ensure your OAuth client has `hub.variables.readwrite` scope.
+- **Debug:** Check the Node-RED "Debug" sidebar for error messages.
 
 ---
 
@@ -95,5 +98,5 @@ Publishes your own data to the Data Hub.
 
 > **DISCLAIMER:**  
 > This is **NOT** an official product of Weidmüller Interface GmbH & Co. KG.  
-> This package was created privately by **IoTUeli** as a community contribution.  
+> This package is maintained by **IoTUeli** as a community contribution.  
 > Use at your own risk. No liability or warranty is assumed.

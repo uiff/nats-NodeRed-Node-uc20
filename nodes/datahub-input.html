@@ -311,28 +311,21 @@
 
     <h4>3. Variables Table</h4>
     <p>
-        Manually map variable names to their IDs. Click <b>"Add Variable"</b> for each entry.
+        Use the <b>Load Variables</b> button to browse and select variables from the provider.
+        Selected variables are automatically added to the list.
+    </p>
+    <p>
+        The table maps Variable Keys (names) to their IDs.
     </p>
     
-    <h5>Finding Variable IDs:</h5>
-    
-    <h6>Option A: From u-Control Web UI (Recommended)</h6>
-    <ol>
-        <li>Go to <b>Data Hub</b> → <b>Providers</b> → Select your provider</li>
-        <li>Click <b>Variables</b></li>
-        <li>Note the <b>ID</b> column (usually 0, 1, 2, ...)</li>
-    </ol>
-
-    <h6>Option B: From REST API</h6>
-    <pre><code>curl -H "Authorization: Bearer $TOKEN" \
-  http://&lt;host&gt;/datahub/v1/providers/&lt;providerId&gt;/variables</code></pre>
-
-    <h5>Example Table:</h5>
-    <table>
-        <tr><th>Variable Name</th><th>ID</th></tr>
-        <tr><td><code>manufacturer_name</code></td><td>0</td></tr>
-        <tr><td><code>machine.details.temp</code></td><td>2</td></tr>
-    </table>
+    <h5>Manual Entry (Fallback)</h5>
+    <p>
+        If the "Load Variables" feature is unavailable, you can manually add variables knowing their IDs:
+    </p>
+    <ul>
+        <li><b>Variable Key:</b> The name (e.g. <code>machine.temp</code>)</li>
+        <li><b>Variable ID:</b> The numeric ID (e.g. <code>5</code>)</li>
+    </ul>
 
     <h4>4. Trigger Mode</h4>
     <dl>
@@ -390,7 +383,7 @@
     <ul>
         <li>✓ Config node deployed?</li>
         <li>✓ Provider ID correct?</li>
-        <li>✓ Variable IDs correct? (Check Python config or Web UI)</li>
+        <li>✓ Variable IDs correct?</li>
         <li>✓ Inject signal sent to input port?</li>
     </ul>
 
@@ -399,13 +392,6 @@
         <li>Double-check the IDs in your table</li>
         <li>Verify IDs match those in the Python config or Web UI</li>
     </ul>
-
-    <h4>Why Manual IDs?</h4>
-    <p>
-        Auto-discovery requires <code>hub.variables.readonly</code> permission on the <b>provider definition endpoint</b>, 
-        which is often restricted for security. The manual table works <b>without</b> this permission 
-        by querying specific IDs directly.
-    </p>
 
     <div style="margin-top:15px; padding-top:10px; border-top:1px solid #ddd; font-size:0.85em; color:#666;">
         <p><b>Developed by <a href="https://www.linkedin.com/in/iotueli/" target="_blank">IoTUeli</a></b></p>

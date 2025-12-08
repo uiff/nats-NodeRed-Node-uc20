@@ -237,8 +237,16 @@ module.exports = function (RED) {
       if (res) {
         const meta = await res.json();
         // Check if metadata contains variables definition
-        if (meta && Array.isArray(meta.variables) && meta.variables.length > 0 && (meta.variables[0].id !== undefined || meta.variables[0].Id !== undefined)) {
-          this.log(`Fetched variables via Provider Metadata (found IDs).`);
+        if (meta && Array.isArray(meta.variables) && meta.variables.length > 0) {
+          this.log(`Fetched ${meta.variables.length} vars via Provider Metadata.`);
+
+          // Apply Heuristic: ID = Index if missing
+          meta.variables.forEach((v, i) => {
+            if (v.id === undefined && v.Id === undefined) {
+              v.id = i;
+            }
+          });
+
           return meta.variables;
         }
       }
