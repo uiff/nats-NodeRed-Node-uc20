@@ -28,12 +28,30 @@ module.exports = function (RED) {
 
     const tokenMarginMs = 60 * 1000;
 
-    this.getToken = async () => {
+    // Timer for background refresh
+    this.refreshTimer = null;
+
+    this.startTokenRefresh = (expiresInSeconds) => {
+      if (this.refreshTimer) clearTimeout(this.refreshTimer);
+      // Refresh 60 seconds before expiration
+      const delay = Math.max(1000, (expiresInSeconds - 60) * 1000);
+      this.refreshTimer = setTimeout(async () => {
+        try {
+          await this.getToken(true); // Force refresh
+        } catch (e) {
+          this.warn(`Token refresh failed: ${e.message}`);
+          // Retry soon? Let's verify logic. 
+          // If fail, we try again in 1 minute.
+          this.startTokenRefresh(60 + 60);
+        }
+      }, delay);
+    };
+
+    this.getToken = async (force = false) => {
       const now = Date.now();
-      if (this.tokenInfo && now < this.tokenInfo.expiresAt - tokenMarginMs) {
+      if (!force && this.tokenInfo && now < this.tokenInfo.expiresAt - tokenMarginMs) {
         return this.tokenInfo.token;
       }
-      // Force refresh if expired or about to expire
       this.log(`Retrieving new access token for ${this.clientId}`);
       const params = new URLSearchParams({
         grant_type: 'client_credentials',
@@ -63,6 +81,10 @@ module.exports = function (RED) {
         expiresAt: now + ((json.expires_in || 3600) * 1000),
         grantedScope: json.scope || this.scope,
       };
+
+      // Schedule next refresh
+      this.startTokenRefresh(json.expires_in || 3600);
+
       return this.tokenInfo.token;
     };
 
@@ -70,16 +92,16 @@ module.exports = function (RED) {
       if (this.nc) {
         return this.nc;
       }
-      // Token is now fetched dynamically via authenticator
-      // const token = await this.getToken();
-      // Use jwtAuthenticator to allow dynamic token refresh on reconnect
+      // Ensure we have a valid token initially
+      await this.getToken();
+
       // Use jwtAuthenticator to allow dynamic token refresh on reconnect
       try {
         this.nc = await connect({
           servers: `nats://${this.host}:${this.port}`,
-          authenticator: async () => {
-            const t = await this.getToken();
-            return { token: t };
+          // Authenticator must be SYNCHRONOUS. We rely on background refresh to keep this.tokenInfo current.
+          authenticator: () => {
+            return { auth_token: this.tokenInfo ? this.tokenInfo.token : '' };
           },
           name: `${this.clientName}-nodered`,
           inboxPrefix: `_INBOX.${this.clientName}`,
@@ -179,146 +201,151 @@ module.exports = function (RED) {
 
     this.release = async () => {
       this.users = Math.max(0, this.users - 1);
-      if (this.users === 0 && this.nc) {
-        const nc = this.nc;
-        this.nc = null;
+      if (this.users === 0) {
+        if (this.refreshTimer) {
+          clearTimeout(this.refreshTimer);
+          this.refreshTimer = null;
+        }
+        if (this.nc) {
+          const nc = this.nc;
+          this.nc = null;
+          try {
+            await nc.drain();
+          }
+          catch (err) {
+            this.warn(`Fehler beim Schließen der NATS-Verbindung: ${err.message}`);
+          }
+        }
+      };
+
+      this.on('close', (done) => {
+        this.release().finally(done);
+      });
+    }
+
+    if (!adminRoutesRegistered) {
+      adminRoutesRegistered = true;
+      RED.httpAdmin.get('/uos/providers/:id', async (req, res) => {
+        const node = RED.nodes.getNode(req.params.id);
+        if (!node) {
+          res.status(404).json({ error: 'config not found' });
+          return;
+        }
         try {
-          await nc.drain();
+          const providers = await node.fetchProviders();
+          res.json(providers);
         }
         catch (err) {
-          this.warn(`Fehler beim Schließen der NATS-Verbindung: ${err.message}`);
+          res.status(500).json({ error: err.message });
         }
-      }
-    };
-
-    this.on('close', (done) => {
-      this.release().finally(done);
-    });
-  }
-
-  if (!adminRoutesRegistered) {
-    adminRoutesRegistered = true;
-    RED.httpAdmin.get('/uos/providers/:id', async (req, res) => {
-      const node = RED.nodes.getNode(req.params.id);
-      if (!node) {
-        res.status(404).json({ error: 'config not found' });
-        return;
-      }
-      try {
-        const providers = await node.fetchProviders();
-        res.json(providers);
-      }
-      catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    });
-    RED.httpAdmin.get('/uos/providers/:id/:providerId/variables', async (req, res) => {
-      const node = RED.nodes.getNode(req.params.id);
-      if (!node) {
-        res.status(404).json({ error: 'config not found' });
-        return;
-      }
-      try {
-        const vars = await node.fetchProviderVariables(req.params.providerId);
-        res.json(vars);
-      }
-      catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    });
-    RED.httpAdmin.get('/uos/oauth-scopes/:id', async (req, res) => {
-      const node = RED.nodes.getNode(req.params.id);
-      if (!node) {
-        res.status(404).json({ error: 'config not found' });
-        return;
-      }
-      try {
-        const scope = await node.getGrantedScopes();
-        res.json({ scope });
-      }
-      catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    });
-
-    // Stateless connection check for "Test Connection" button
-    RED.httpAdmin.post('/uos/check-connection', async (req, res) => {
-      const { host, port, clientId, clientSecret } = req.body;
-      if (!host || !clientId || !clientSecret) {
-        res.status(400).json({ error: 'Missing host, clientId or clientSecret' });
-        return;
-      }
-
-      let nc = null;
-      try {
-        // 1. Get Token
-        const tokenEndpoint = `https://${host}/oauth2/token`;
-        const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        const params = new URLSearchParams({
-          grant_type: 'client_credentials',
-          scope: DEFAULT_SCOPE,
-        });
-
-        // Use custom agent to allow self-signed certs safely if needed (or rely on env var)
-        // Note: process.env.NODE_TLS_REJECT_UNAUTHORIZED is already handled globally in this file
-
-        const tokenRes = await fetch(tokenEndpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Basic ${basic}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Accept: 'application/json',
-          },
-          body: params,
-        });
-
-        if (!tokenRes.ok) {
-          throw new Error(`Token fetch failed: ${tokenRes.status} ${await tokenRes.text()}`);
+      });
+      RED.httpAdmin.get('/uos/providers/:id/:providerId/variables', async (req, res) => {
+        const node = RED.nodes.getNode(req.params.id);
+        if (!node) {
+          res.status(404).json({ error: 'config not found' });
+          return;
         }
-        const tokenJson = await tokenRes.json();
-        const token = tokenJson.access_token;
+        try {
+          const vars = await node.fetchProviderVariables(req.params.providerId);
+          res.json(vars);
+        }
+        catch (err) {
+          res.status(500).json({ error: err.message });
+        }
+      });
+      RED.httpAdmin.get('/uos/oauth-scopes/:id', async (req, res) => {
+        const node = RED.nodes.getNode(req.params.id);
+        if (!node) {
+          res.status(404).json({ error: 'config not found' });
+          return;
+        }
+        try {
+          const scope = await node.getGrantedScopes();
+          res.json({ scope });
+        }
+        catch (err) {
+          res.status(500).json({ error: err.message });
+        }
+      });
 
-        // 2. Fetch Providers (API Check)
-        // Try fallback logic similar to instance method
-        const tryFetch = async (url) => {
-          const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
-          if (!r.ok && r.status !== 404) throw new Error(`API ${r.status}`);
-          return r.ok ? r : null;
-        };
+      // Stateless connection check for "Test Connection" button
+      RED.httpAdmin.post('/uos/check-connection', async (req, res) => {
+        const { host, port, clientId, clientSecret } = req.body;
+        if (!host || !clientId || !clientSecret) {
+          res.status(400).json({ error: 'Missing host, clientId or clientSecret' });
+          return;
+        }
 
-        let apiRes = await tryFetch(`https://${host}/u-os-hub/api/v1/providers`);
-        if (!apiRes) apiRes = await tryFetch(`https://${host}/datahub/v1/providers`);
+        let nc = null;
+        try {
+          // 1. Get Token
+          const tokenEndpoint = `https://${host}/oauth2/token`;
+          const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+          const params = new URLSearchParams({
+            grant_type: 'client_credentials',
+            scope: DEFAULT_SCOPE,
+          });
 
-        if (!apiRes) throw new Error('API endoint not found');
+          // Use custom agent to allow self-signed certs safely if needed (or rely on env var)
+          // Note: process.env.NODE_TLS_REJECT_UNAUTHORIZED is already handled globally in this file
 
-        const providers = await apiRes.json();
-        const count = Array.isArray(providers) ? providers.length : 0;
+          const tokenRes = await fetch(tokenEndpoint, {
+            method: 'POST',
+            headers: {
+              Authorization: `Basic ${basic}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Accept: 'application/json',
+            },
+            body: params,
+          });
 
-        // 3. NATS Check (optional but good)
-        // We verify NATS connectivity quickly
-        nc = await connect({
-          servers: `nats://${host}:${port || 49360}`,
-          token,
-          name: `nodered-check-${Date.now()}`,
-          waitOnFirstConnect: true,
-          maxReconnectAttempts: 1,
-        });
+          if (!tokenRes.ok) {
+            throw new Error(`Token fetch failed: ${tokenRes.status} ${await tokenRes.text()}`);
+          }
+          const tokenJson = await tokenRes.json();
+          const token = tokenJson.access_token;
 
-        res.json({ success: true, providers: count, providersList: providers, connected: true });
-      }
-      catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-      finally {
-        if (nc) nc.drain().catch(() => { });
-      }
+          // 2. Fetch Providers (API Check)
+          // Try fallback logic similar to instance method
+          const tryFetch = async (url) => {
+            const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+            if (!r.ok && r.status !== 404) throw new Error(`API ${r.status}`);
+            return r.ok ? r : null;
+          };
+
+          let apiRes = await tryFetch(`https://${host}/u-os-hub/api/v1/providers`);
+          if (!apiRes) apiRes = await tryFetch(`https://${host}/datahub/v1/providers`);
+
+          if (!apiRes) throw new Error('API endoint not found');
+
+          const providers = await apiRes.json();
+          const count = Array.isArray(providers) ? providers.length : 0;
+
+          // 3. NATS Check (optional but good)
+          // We verify NATS connectivity quickly
+          nc = await connect({
+            servers: `nats://${host}:${port || 49360}`,
+            token,
+            name: `nodered-check-${Date.now()}`,
+            waitOnFirstConnect: true,
+            maxReconnectAttempts: 1,
+          });
+
+          res.json({ success: true, providers: count, providersList: providers, connected: true });
+        }
+        catch (err) {
+          res.status(500).json({ error: err.message });
+        }
+        finally {
+          if (nc) nc.drain().catch(() => { });
+        }
+      });
+    }
+
+    RED.nodes.registerType('uos-config', UosConfigNode, {
+      credentials: {
+        clientId: { type: 'text' },
+        clientSecret: { type: 'password' },
+      },
     });
-  }
-
-  RED.nodes.registerType('uos-config', UosConfigNode, {
-    credentials: {
-      clientId: { type: 'text' },
-      clientSecret: { type: 'password' },
-    },
-  });
-};
+  };
