@@ -6,10 +6,12 @@
       name: { value: '' },
       connection: { type: 'uos-config', required: true },
       providerId: { value: '', required: false },
-      heartbeatInterval: { value: 300, required: true, validate: RED.validators.number() } // Default 5 mins
+      heartbeatInterval: { value: 300, required: true, validate: RED.validators.number() }, // Default 5 mins
+      enableWrites: { value: false }
     },
     inputs: 1,
-    outputs: 1,
+    outputs: 2,
+    outputLabels: ["Input Passthrough", "External Write Command"],
     icon: "datahub-provider.svg",
     oneditprepare: function () {
       const node = this;
@@ -119,6 +121,11 @@
     <input type="number" id="node-input-heartbeatInterval" placeholder="300" style="width:100px;">
     <span style="color:#777; font-size:0.9em; margin-left:10px;">(Default: 300s / 5min)</span>
   </div>
+  <div class="form-row">
+    <label for="node-input-enableWrites"><i class="fa fa-pencil"></i> Access</label>
+    <input type="checkbox" id="node-input-enableWrites" style="width:auto; vertical-align:top;">
+    <span style="margin-left:5px;">Allow external writes (Bidirectional)</span>
+  </div>
 </script>
 
 <script type="text/html" data-help-name="datahub-output">
@@ -130,8 +137,15 @@
     <dd>The unique ID for this provider.</dd>
     <dd><b>Auto Mode:</b> Shows the <em>Client Name</em> from your Config. Uses this name automatically.</dd>
     <dt>Keep-Alive (s)</dt>
-    <dd>Interval in seconds to refresh the provider definition. Default: <b>300s (5 min)</b>. Lower values increase traffic but might be needed for very strict networks.</dd>
+    <dd>Interval in seconds to refresh the provider definition. Default: <b>300s (5 min)</b>.</dd>
+    <dt>Allow external writes</dt>
+    <dd>If checked, variables are published as <code>READ_WRITE</code>. External changes are emitted on the <b>2nd Output</b>.</dd>
   </dl>
+  <h3>Outputs</h3>
+  <ol>
+    <li><b>Input Passthrough:</b> The original message sent to the node.</li>
+    <li><b>External Write Command:</b> Emits a message when another system writes to a variable. <code>msg.var</code> contains the key, <code>msg.value</code> the new value.</li>
+  </ol>
   <p>Send a JSON object as <code>msg.payload</code>. Nested objects are flattened using dot-notation to create <strong>subcategories</strong> automatically:</p>
 <pre>{
   "machine": {

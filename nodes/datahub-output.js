@@ -96,7 +96,7 @@ module.exports = function (RED) {
         id: nextId += 1,
         key: normalized,
         dataType,
-        access: 'READ_ONLY',
+        access: config.enableWrites ? 'READ_WRITE' : 'READ_ONLY',
       };
       defMap.set(normalized, def);
       definitions.push(def);
@@ -243,6 +243,81 @@ module.exports = function (RED) {
           },
         });
         console.log('[DataHub Output] Subscribed to Read Query.');
+
+        // LISTEN FOR WRITE COMMANDS (BIDIRECTIONAL)
+        if (config.enableWrites) {
+          const writeSubject = subjects.writeVariablesCommand(this.providerId);
+          console.log(`[DataHub Output] Subscribing to WRITE command: ${writeSubject}`);
+
+          nc.subscribe(writeSubject, {
+            callback: (err, msg) => {
+              if (err) {
+                this.warn(`Write command error: ${err.message}`);
+                return;
+              }
+              try {
+                const updates = payloads.decodeWriteVariablesCommand(msg.data);
+                if (!updates || updates.length === 0) return;
+
+                console.log(`[DataHub Output] Received WRITE for ${updates.length} vars.`);
+
+                // Prepare output for Node-RED Flow
+                const outputMsgs = [];
+                let stateChanged = false;
+
+                updates.forEach(update => {
+                  // Find defining key by ID
+                  // This is expensive O(N). Optimization: Map<ID, Key>
+                  // But definitions are usually few (<1000).
+                  // We have stateMap keyed by ID!
+                  const currentState = stateMap.get(update.id);
+                  if (currentState) {
+                    // Update internal state
+                    currentState.value = update.value;
+                    currentState.timestamp = BigInt(Date.now()) * 1_000_000n;
+                    currentState.quality = 'GOOD_LOCAL_OVERRIDE'; // Mark as written? Or just GOOD? 
+                    // NATS Sample uses GOOD.
+
+                    // Find key (optional, for convenience in msg)
+                    const def = definitions.find(d => d.id === update.id);
+                    const key = def ? def.key : `id_${update.id}`;
+
+                    outputMsgs.push({
+                      topic: key,
+                      payload: update.value,
+                      var: key,
+                      value: update.value,
+                      providerId: this.providerId,
+                      _msgid: RED.util.generateId()
+                    });
+                    stateChanged = true;
+                  }
+                });
+
+                if (stateChanged) {
+                  // ACK changes back to DataHub (VariablesChangedEvent)
+                  // This confirms to the writer that the value was accepted.
+                  sendValuesUpdate();
+
+                  // Emit to 2nd Output
+                  if (outputMsgs.length > 0) {
+                    // Node-RED send: [output1, output2]
+                    // We send null to output1 (pass-through not involved here)
+                    // We send array of msgs to output2? Or one by one?
+                    // Ideally one array if multiple updates?
+                    // Let's send them individually to be safe with flows.
+                    outputMsgs.forEach(m => {
+                      this.send([null, m]);
+                    });
+                  }
+                }
+
+              } catch (e) {
+                this.warn(`Failed to process write command: ${e.message}`);
+              }
+            }
+          });
+        }
 
         this.status({ fill: 'green', shape: 'dot', text: 'ready' });
 
