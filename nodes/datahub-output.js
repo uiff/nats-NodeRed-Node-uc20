@@ -276,8 +276,8 @@ module.exports = function (RED) {
 
         this.status({ fill: 'green', shape: 'dot', text: 'ready' });
 
-        // Heartbeat Restored: Provider disappears after ~20 minutes if definition is not refreshed.
-        // Set to 15 minutes (900000ms) to avoid frequent UI flickering but ensure persistence.
+        // Heartbeat Restored: Provider disappears after ~20 minutes.
+        // Set to 5 minutes (300000ms) - User requested shorter interval. Very safe margin (25% of TTL).
         const outputHeartbeat = setInterval(() => {
           if (nc && !nc.isClosed()) {
             console.log('[DataHub Output] Sending Definition Heartbeat...');
@@ -285,7 +285,7 @@ module.exports = function (RED) {
               this.warn(`Heartbeat error: ${err.message}`);
             });
           }
-        }, 900000);
+        }, 300000);
 
 
         this.on('input', async (msg, send, done) => {
