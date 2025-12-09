@@ -111,7 +111,13 @@ module.exports = function (RED) {
         if (this.variableKey) {
             // Trigger background resolution
             node.status({ fill: 'yellow', shape: 'dot', text: 'resolving...' });
-            resolveVariableKey(await configNode.acquire(), this.providerId, this.variableKey, node, node.payloads)
+            // Trigger background resolution
+            node.status({ fill: 'yellow', shape: 'dot', text: 'resolving...' });
+
+            // Fix: Cannot use await in constructor. Use Promise chain.
+            configNode.acquire().then(nc => {
+                return resolveVariableKey(nc, node.providerId, node.variableKey, node, node.payloads);
+            })
                 .then(resolved => {
                     node.resolvedId = resolved.id;
                     node.resolvedDataType = resolved.dataType;
