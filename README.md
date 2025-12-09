@@ -94,8 +94,8 @@ Publishes your own data to the Data Hub.
 - **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.
 - **Connection Failed?** Check Host/IP and ensure Client ID/Secret are correct.
 - **Variable ID "undefined" or "ERR"?** 
-  - Ensure the provider is publishing correct definitions.
-  - The nodes attempt to autofix missing IDs by using the variable index (0, 1, 2...) if the provider supports it.
+  - The ID column is hidden by default to avoid confusion. The node handles ID resolution automatically.
+  - If a variable fails, check if the Key (name) is correct on the Data Hub.
 - **Write not working?** Ensure your OAuth client has `hub.variables.readwrite` scope.
 - **Debug:** Check the Node-RED "Debug" sidebar for error messages.
 

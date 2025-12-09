@@ -247,7 +247,6 @@
         
         <div style="display:grid; grid-template-columns: 30px 1fr; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
             <div style="text-align:center;"><i class="fa fa-check-square-o"></i></div>
-            <!-- ID Column Removed -->
             <div style="padding-left:10px;">Name</div>
         </div>
 
@@ -317,18 +316,11 @@
         Use the <b>Load Variables</b> button to browse and select variables from the provider.
         Selected variables are automatically added to the list.
     </p>
-    <p>
-        The table maps Variable Keys (names) to their IDs.
-    </p>
-    
+
     <h5>Manual Entry (Fallback)</h5>
     <p>
-        If the "Load Variables" feature is unavailable, you can manually add variables knowing their IDs:
+        If the "Load Variables" feature is unavailable, you can manually add variables by editing the <code>manualVariables</code> property (Advanced).
     </p>
-    <ul>
-        <li><b>Variable Key:</b> The name (e.g. <code>machine.temp</code>)</li>
-        <li><b>Variable ID:</b> The numeric ID (e.g. <code>5</code>)</li>
-    </ul>
 
     <h4>4. Trigger Mode</h4>
     <dl>

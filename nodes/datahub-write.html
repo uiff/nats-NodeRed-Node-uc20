@@ -175,7 +175,21 @@
             });
 
             // Initial state
-            $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Click <b>Load Variables</b> to browse.</div>');
+            const initId = $inputId.val();
+            const initKey = $inputKey.val();
+
+            if (initId || initKey) {
+                // Show dummy entry for currently selected variable
+                const dummy = [{
+                    id: initId || '?',
+                    // If ID is missing, key is enough. If Key is missing, show ID.
+                    key: initKey || `ID: ${initId}`
+                }];
+                renderList(dummy);
+                $statusMsg.text('Selected variable shown. Load again to refresh.').css('color', '#888');
+            } else {
+                $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Click <b>Load Variables</b> to browse.</div>');
+            }
 
             // Set initial display (Removed updateSelectionDisplay call)
             // But we might want to manually populate inputs if they are empty? No, defaults handle that.
@@ -304,8 +318,8 @@
     <pre><code>{
   "success": true,
   "providerId": "u_os_adm",
-  "variableId": 5,
-  "value": false
+  "count": 1,
+  "firstValue": false
 }</code></pre>
 
     <h3>Example Flow</h3>
