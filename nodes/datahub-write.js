@@ -106,13 +106,36 @@ module.exports = function (RED) {
         // Validate: either ID or Key required
         // Relaxed validation for Batch Mode (handled in Input)
 
-        // If ID provided and valid, use it
-        if (this.variableId && !isNaN(this.variableId)) {
+        // If Key is provided, we should ALWAYS resolve it to ensure ID is fresh (Auto-Healing)
+        // If only ID is provided (legacy), we trust it.
+        if (this.variableKey) {
+            // Trigger background resolution
+            node.status({ fill: 'yellow', shape: 'dot', text: 'resolving...' });
+            resolveVariableKey(await configNode.acquire(), this.providerId, this.variableKey, node, node.payloads)
+                .then(resolved => {
+                    node.resolvedId = resolved.id;
+                    node.resolvedDataType = resolved.dataType;
+                    node.resolvedFingerprint = resolved.fingerprint;
+
+                    if (node.variableId && node.variableId !== resolved.id) {
+                        node.warn(`Auto-Healed ID for '${this.variableKey}': Configured=${node.variableId}, Resolved=${resolved.id}`);
+                    }
+                    node.status({ fill: 'green', shape: 'ring', text: 'ready' });
+                })
+                .catch(err => {
+                    node.warn(`ID Resolution failed for '${this.variableKey}': ${err.message}. Using configured ID: ${this.variableId}`);
+                    // Fallback to configured ID if resolution failed
+                    if (this.variableId && !isNaN(this.variableId)) {
+                        node.resolvedId = this.variableId;
+                        node.status({ fill: 'green', shape: 'ring', text: 'ready (fallback)' });
+                    } else {
+                        node.status({ fill: 'red', shape: 'dot', text: 'resolution failed' });
+                    }
+                });
+        } else if (this.variableId && !isNaN(this.variableId)) {
+            // Legacy/Manual Mode without Key
             this.resolvedId = this.variableId;
             node.status({ fill: 'green', shape: 'ring', text: 'ready' });
-        } else if (this.variableKey) {
-            // Key provided - will resolve on first message
-            node.status({ fill: 'yellow', shape: 'ring', text: 'key needs resolution' });
         }
 
         // Load payloads module dynamically

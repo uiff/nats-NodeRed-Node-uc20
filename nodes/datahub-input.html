@@ -62,8 +62,9 @@
       const $hiddenManual = $('#node-input-manualVariables');
 
       // Styles
-      const rowStyle = "display:grid; grid-template-columns: 30px 60px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px;";
-      const idStyle = "background:#eee; color:#555; padding:1px 4px; border-radius:3px; font-family:monospace; text-align:center; font-size:11px;";
+      // Adjusted: ID column removed per user request (Key is main identifier)
+      const rowStyle = "display:grid; grid-template-columns: 30px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px;";
+      // const idStyle = ... (removed)
       const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
 
       let currentVariables = []; // Stores {id, key, accessType, etc.}
@@ -93,7 +94,7 @@
         const selectedMap = getSelectedMap();
 
         vars.forEach(v => {
-          // Robust ID handling: verify v.id exists (try 'id' and 'Id')
+          // Robust ID handling
           let rawId = (v.id !== undefined && v.id !== null) ? v.id : v.Id;
           const safeId = (rawId !== undefined && rawId !== null) ? rawId : 'ERR';
           const isSelected = selectedMap.has(v.key);
@@ -104,13 +105,15 @@
           const cb = $('<input type="checkbox" class="var-checkbox">')
             .prop('checked', isSelected)
             .data('key', v.key)
-            .data('id', safeId);
+            .data('id', safeId); // ID strictly stored in data attribute
           cbContainer.append(cb);
 
-          const idBadge = $('<div>').append($('<span>', { style: idStyle }).text(safeId));
+          // ID Column Removed from View
+          // const idBadge = ...
+
           const label = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
 
-          row.append(cbContainer).append(idBadge).append(label);
+          row.append(cbContainer).append(label); // No ID badge
           $listContainer.append(row);
         });
       };

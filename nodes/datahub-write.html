@@ -29,8 +29,9 @@
             const $inputKey = $('#node-input-variableKey');
 
             // Styles matching Read Node exactly
-            const rowStyle = "display:grid; grid-template-columns: 30px 60px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
-            const idStyle = "background:#eee; color:#555; padding:1px 4px; border-radius:3px; font-family:monospace; text-align:center; font-size:11px;";
+            // Adjusted: ID column removed
+            const rowStyle = "display:grid; grid-template-columns: 30px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
+            // const idStyle = ...
             const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
 
             // Removed iconStyle, using checkbox instead
@@ -60,12 +61,12 @@
 
                     cbContainer.append(cb);
 
-                    // ID
-                    const idCol = $('<div>', { style: 'text-align:center;' }).append($('<span>', { style: idStyle }).text(safeId));
+                    // ID - HIDDEN
+                    // const idCol = $('<div>', { style: 'text-align:center;' }).append($('<span>', { style: idStyle }).text(safeId));
                     // Key
                     const keyCol = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
 
-                    row.append(cbContainer).append(idCol).append(keyCol);
+                    row.append(cbContainer).append(keyCol); // No ID Col
 
                     // Click Handler (Row or Checkbox)
                     const selectRow = () => {
