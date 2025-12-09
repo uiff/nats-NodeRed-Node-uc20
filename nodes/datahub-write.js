@@ -118,7 +118,7 @@ module.exports = function (RED) {
                     node.resolvedFingerprint = resolved.fingerprint;
 
                     if (node.variableId && node.variableId !== resolved.id) {
-                        node.warn(`Auto-Healed ID for '${this.variableKey}': Configured=${node.variableId}, Resolved=${resolved.id}`);
+                        node.debug(`Auto-Healed ID for '${this.variableKey}': Configured=${node.variableId}, Resolved=${resolved.id}`);
                     }
                     node.status({ fill: 'green', shape: 'ring', text: 'ready' });
                 })

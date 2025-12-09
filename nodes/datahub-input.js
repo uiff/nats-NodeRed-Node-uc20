@@ -156,7 +156,8 @@ module.exports = function (RED) {
 
         if ((defMap.size === 0 && this.manualDefs.length === 0) || hasMissingIds) {
           try {
-            this.warn(hasMissingIds
+            // Changed from warn to debug to reduce noise as per user request
+            this.debug(hasMissingIds
               ? `Loaded variables have unresolved IDs (Heuristic). Attempting NATS Discovery to resolve real IDs for ${this.providerId}...`
               : `Attempting NATS Discovery (Direct) for ${this.providerId}...`
             );
@@ -171,7 +172,7 @@ module.exports = function (RED) {
             const defs = payloads.decodeProviderDefinition(defMsg.data);
 
             if (defs && defs.variables.length > 0) {
-              this.warn(`NATS Discovery Successful: Received ${defs.variables.length} definitions with real IDs.`);
+              this.debug(`NATS Discovery Successful: Received ${defs.variables.length} definitions with real IDs.`);
               // Overwrite/Update defMap
               // Logic: Match by KEY. DataHub providers should have unique keys.
               // If we have existing "fake" ID 5 for "temp", and NATS says "temp" is ID 291.
