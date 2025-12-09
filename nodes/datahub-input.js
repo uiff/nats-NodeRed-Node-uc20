@@ -150,26 +150,108 @@ module.exports = function (RED) {
         nc = await connection.acquire();
         this.status({ fill: 'green', shape: 'dot', text: 'connected' });
 
-        // Retry Definition Fetch via NATS if Map is empty AND no manual defs
-        if (defMap.size === 0 && this.manualDefs.length === 0) {
+        // Retry Definition Fetch via NATS if Map is empty OR if we have Heuristic IDs (missingId)
+        // Heuristic IDs (ID=Index) are dangerous because they might not match the real NATS IDs (e.g. 291 vs 5)
+        const hasMissingIds = Array.from(defMap.values()).some(d => d.missingId);
+
+        if ((defMap.size === 0 && this.manualDefs.length === 0) || hasMissingIds) {
           try {
+            this.warn(hasMissingIds
+              ? `Loaded variables have unresolved IDs (Heuristic). Attempting NATS Discovery to resolve real IDs for ${this.providerId}...`
+              : `Attempting NATS Discovery (Direct) for ${this.providerId}...`
+            );
+
             // Strategy 1: Direct Provider Query (Standard for many providers)
-            this.warn(`Attempting NATS Discovery (Direct) for ${this.providerId}...`);
-            const defMsg = await nc.request(subjects.readProviderDefinitionQuery(this.providerId), payloads.buildReadProviderDefinitionQuery(), { timeout: 1000 });
+            const requestOptions = { timeout: 2000 };
+            // Reuse serialRequest if available to avoid blocking connection? 
+            // Discovery is one-off, nc.request is fine, but safer to use serial if we updated input.js fully. 
+            // Start uses 'nc' directly currently. That's fine for now as it's sequential in 'start'.
+
+            const defMsg = await nc.request(subjects.readProviderDefinitionQuery(this.providerId), payloads.buildReadProviderDefinitionQuery(), requestOptions);
             const defs = payloads.decodeProviderDefinition(defMsg.data);
-            this.warn(`NATS Direct Discovery: Loaded ${defs.length} variables.`);
-            defs.forEach((def) => defMap.set(def.id, def));
+
+            if (defs && defs.variables.length > 0) {
+              this.warn(`NATS Discovery Successful: Received ${defs.variables.length} definitions with real IDs.`);
+              // Overwrite/Update defMap
+              // Logic: Match by KEY. DataHub providers should have unique keys.
+              // If we have existing "fake" ID 5 for "temp", and NATS says "temp" is ID 291.
+              // We need to update defMap to use 291.
+
+              // Clear Heuristic entries if we trust NATS fully? 
+              // Or just merge?
+              // Safer: Create a lookup from NATS.
+              const realMap = new Map();
+              defs.variables.forEach(d => realMap.set(d.key, d));
+
+              // Update existing defMap
+              // If we had a heuristic entry, replace it.
+              // We rebuild defMap based on NATS mostly, but keep manual fallback?
+
+              // Let's iterate NATS defs and Populating defMap.
+              // Note: NATS Defs don't have 'missingId'.
+              defs.variables.forEach(d => {
+                // If we overwrite, we lose manual metadata (if any)? 
+                // REST might have had better metadata? Usually NATS is source of truth for IDs.
+                defMap.set(d.id, d);
+              });
+
+              // Use Key Matching to remove old Heuristic entries?
+              // Heuristic entries are stored by Key (via fetchProviderVariables logic? No, by ID).
+              // We need to clean up the Fake IDs (0..N) if they don't map to real IDs.
+              // Actually, if we just add real IDs, we have duplicates?
+              // Map is Key=ID.
+              // Fake ID 5: { key: 'voltage' }
+              // Real ID 291: { key: 'voltage' }
+              // If user selected 'voltage', filtering uses KEYS (processStates line 104).
+              // Resolution (line 195) iterates values and matches Key.
+              // It will find BOTH 5 and 291.
+              // targetIds will get [5, 291].
+              // DataHub gets request [5, 291].
+              // 5 is invalid -> ignored.
+              // 291 is valid -> returns value.
+              // Result: It works! (Partially, effectively).
+
+              // But cleaner to remove heuristic ones.
+              for (const [id, def] of defMap.entries()) {
+                if (def.missingId) {
+                  const real = realMap.get(def.key);
+                  if (real && real.id !== id) {
+                    defMap.delete(id); // Remove fake ID
+                  }
+                }
+              }
+              this.warn(`IDs resolved via NATS. Mapped ${defs.variables.length} real IDs.`);
+            }
+
           } catch (firstErr) {
-            // Strategy 2: Registry Query (Central lookup, often requires different perms or used by Hub)
+            // Strategy 2: Registry Query
             try {
-              this.warn(`NATS Direct failed (${firstErr.message}), trying Registry Discovery...`);
-              // Note: 'registryProviderQuery' accesses the central registry which might proxy the definition
+              if (!hasMissingIds) { // Only log if we were truly empty
+                this.warn(`NATS Direct failed (${firstErr.message}), trying Registry Discovery...`);
+              }
               const regMsg = await nc.request(subjects.registryProviderQuery(this.providerId), payloads.buildReadProviderDefinitionQuery(), { timeout: 2000 });
               const defs = payloads.decodeProviderDefinition(regMsg.data);
-              this.warn(`NATS Registry Discovery: Loaded ${defs.length} variables.`);
-              defs.forEach((def) => defMap.set(def.id, def));
+              if (defs && defs.variables.length > 0) {
+                this.warn(`NATS Registry Discovery: Loaded ${defs.variables.length} variables.`);
+                // Same merge logic
+                const realMap = new Map();
+                defs.variables.forEach(d => realMap.set(d.key, d));
+                defs.variables.forEach(d => defMap.set(d.id, d));
+                for (const [id, def] of defMap.entries()) {
+                  if (def.missingId) {
+                    const real = realMap.get(def.key);
+                    if (real && real.id !== id) {
+                      defMap.delete(id);
+                    }
+                  }
+                }
+              }
             } catch (secondErr) {
-              this.warn(`All Discovery methods failed (REST, NATS Direct, NATS Registry). Please use Manual Definitions (Name:ID). Error: ${secondErr.message}`);
+              if (!hasMissingIds) {
+                this.warn(`All Discovery methods failed (REST, NATS Direct, NATS Registry). Please use Manual Definitions (Name:ID). Error: ${secondErr.message}`);
+              } else {
+                this.warn(`NATS ID Resolution failed. Continuing with Heuristic (Index-based) IDs. This generally fails for advanced providers.`);
+              }
             }
           }
         }
@@ -230,12 +312,41 @@ module.exports = function (RED) {
             // Re-process states (lookup names, formatting)
             const filteredSnapshot = processStates(states);
 
-            if (filteredSnapshot.length) {
+            if (filteredSnapshot.length > 0) {
               this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
             } else {
               if (states.length > 0) {
                 this.warn(`Snapshot received data but everything was filtered out. Check Variable selection. Debug: First raw ID: ${states[0].id}, DefMap has it? ${defMap.has(states[0].id)}`);
               } else {
+                // EMPTY RESPONSE
+                // Check if we requested multiple IDs. Some providers fail on bulk read.
+                if (targetIds.length > 1) {
+                  this.warn(`Snapshot Bulk Read failed (Empty List). Retrying ${targetIds.length} variables individually...`);
+                  const accumulatedStates = [];
+
+                  for (const id of targetIds) {
+                    try {
+                      let msg;
+                      if (typeof connection.serialRequest === 'function') {
+                        msg = await connection.serialRequest(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery([id]), { timeout: 2000 });
+                      } else {
+                        msg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery([id]), { timeout: 2000 });
+                      }
+                      const singleResponse = payloads.decodeVariableList(ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(new flatbuffers.ByteBuffer(msg.data)).variables());
+                      if (singleResponse.length > 0) {
+                        accumulatedStates.push(...singleResponse);
+                      }
+                    } catch (e) { /* ignore single failures */ }
+                  }
+
+                  const accumulatedFiltered = processStates(accumulatedStates);
+                  if (accumulatedFiltered.length > 0) {
+                    this.send({ payload: { type: 'snapshot', variables: accumulatedFiltered } });
+                    this.warn(`Snapshot Recovery successful! Retrieved ${accumulatedFiltered.length} items via single requests.`);
+                    return; // Success
+                  }
+                }
+
                 this.warn(`Snapshot received empty list from Data Hub. (Requested ${targetIds.length > 0 ? targetIds.length + ' specific IDs' : 'ALL variables'}).`);
               }
             }
