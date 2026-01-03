@@ -43,6 +43,12 @@ module.exports = function (RED) {
       this.host = config.host || '127.0.0.1';
       this.port = Number(config.port) || 49360;
       this.clientName = config.clientName || 'nodered';
+
+      // SAFETY: Prevent impersonating the system provider
+      if (typeof this.clientName === 'string' && this.clientName.toLowerCase() === 'u_os_sbm') {
+        this.warn("Illegal Client Name 'u_os_sbm' detected! It conflicts with the system provider. Forcing rename to 'nodered'.");
+        this.clientName = 'nodered';
+      }
       this.scope = DEFAULT_SCOPE;
       this.clientId = this.credentials ? this.credentials.clientId : null;
       this.clientSecret = this.credentials ? this.credentials.clientSecret : null;
@@ -80,9 +86,8 @@ module.exports = function (RED) {
           await this.getToken(true); // Force refresh
         } catch (e) {
           this.warn(`Token refresh failed: ${e.message}`);
-          // Retry soon? Let's verify logic. 
-          // If fail, we try again in 1 minute.
-          this.startTokenRefresh(60 + 60);
+          // Retry in 60 seconds
+          this.startTokenRefresh(120); // Treat as if we have 120s left (so we retry in 60s)
         }
       }, delay);
     };
@@ -92,43 +97,82 @@ module.exports = function (RED) {
       if (!force && this.tokenInfo && now < this.tokenInfo.expiresAt - tokenMarginMs) {
         return this.tokenInfo.token;
       }
+
+      // Deduplication: Return existing promise if we are already fetching
+      if (this.pendingTokenRequest) {
+        this.log(`Joining pending token request...`);
+        return this.pendingTokenRequest;
+      }
+
       this.log(`Retrieving new access token for ${this.clientId}`);
-      const params = new URLSearchParams({
-        grant_type: 'client_credentials',
-        scope: this.scope,
-      });
-      const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-      const tokenEndpoint = `https://${this.host}/oauth2/token`;
-      const res = await fetch(tokenEndpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${basic}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Accept: 'application/json',
-        },
-        body: params,
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Token request failed: ${res.status} ${text}`);
-      }
-      const json = await res.json();
-      if (!json.access_token) {
-        throw new Error('Token response missing access_token');
-      }
-      this.tokenInfo = {
-        token: json.access_token,
-        expiresAt: now + ((json.expires_in || 3600) * 1000),
-        grantedScope: json.scope || this.scope,
-      };
 
-      // Schedule next refresh
-      this.startTokenRefresh(json.expires_in || 3600);
+      this.pendingTokenRequest = (async () => {
+        try {
+          const params = new URLSearchParams({
+            grant_type: 'client_credentials',
+            scope: this.scope,
+          });
+          const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+          const tokenEndpoint = `https://${this.host}/oauth2/token`;
 
-      return this.tokenInfo.token;
+          let lastError;
+          // Retry logic inside the singleton request
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              const res = await fetch(tokenEndpoint, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Basic ${basic}`,
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  Accept: 'application/json',
+                },
+                body: params,
+                timeout: 30000
+              });
+
+              if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Token request failed: ${res.status} ${text}`);
+              }
+              const json = await res.json();
+              if (!json.access_token) {
+                throw new Error('Token response missing access_token');
+              }
+              this.tokenInfo = {
+                token: json.access_token,
+                expiresAt: Date.now() + ((json.expires_in || 3600) * 1000),
+                grantedScope: json.scope || this.scope,
+              };
+
+              // Schedule next refresh
+              this.startTokenRefresh(json.expires_in || 3600);
+
+              return this.tokenInfo.token;
+
+            } catch (e) {
+              lastError = e;
+              this.warn(`Token fetch attempt ${attempt}/3 failed: ${e.message}`);
+              if (attempt < 3) {
+                await new Promise(resolve => setTimeout(resolve, 3000));
+              }
+            }
+          }
+          throw lastError || new Error("Token fetch failed after 3 attempts");
+
+        } finally {
+          this.pendingTokenRequest = null; // Clear flag
+        }
+      })();
+
+      return this.pendingTokenRequest;
     };
 
     this.ensureConnection = async () => {
+      // Circuit Breaker: If we recently failed auth, do not try again for 10 seconds.
+      if (this.authFailureTimestamp && (Date.now() - this.authFailureTimestamp < 10000)) {
+        throw new Error(`Authentication Cooldown Active. Retrying later.`);
+      }
+
       if (this.nc) {
         return this.nc;
       }
@@ -150,7 +194,16 @@ module.exports = function (RED) {
           reconnectTimeWait: 2000,
         });
         this.log(`NATS connecting with Name: '${this.clientName}'`);
+
+        // Reset Failure timestamp on success
+        this.authFailureTimestamp = 0;
+
       } catch (e) {
+        if (e.message && (e.message.includes('Authorization') || e.message.includes('Permissions') || e.message.includes('Authentication'))) {
+          this.warn(`NATS Authorization failed. Invalidating token cache. Circuit Breaker active for 10s.`);
+          this.tokenInfo = null; // Force fresh token next time
+          this.authFailureTimestamp = Date.now(); // Start Cooldown
+        }
         this.error(`NATS connect failed: ${e.message}`);
         throw e;
       }
@@ -175,21 +228,46 @@ module.exports = function (RED) {
       return this.nc;
     };
 
-    this.requestQueue = Promise.resolve();
+    // Parallel Request Queue (Semaphore)
+    // Limits concurrency to avoid 503 errors while allowing reasonable speed.
+    this.activeRequests = 0;
+    this.maxConcurrent = 5; // Allow 5 parallel snapshot requests
+    this.requestQueue = [];
 
-    this.serialRequest = async (subject, payload, options = {}) => {
-      // Enqueue request to run sequentially
-      const result = this.requestQueue.then(async () => {
-        const nc = await this.ensureConnection();
-        return nc.request(subject, payload, options);
+    this.processQueue = async () => {
+      // While we have capacity and pending items
+      while (this.activeRequests < this.maxConcurrent && this.requestQueue.length > 0) {
+        const { task, resolve, reject } = this.requestQueue.shift();
+        this.activeRequests++;
+
+        // Execute task (non-blocking for the loop)
+        (async () => {
+          try {
+            const result = await task();
+            resolve(result);
+          } catch (err) {
+            reject(err);
+          } finally {
+            this.activeRequests--;
+            this.processQueue(); // Trigger next task
+          }
+        })();
+      }
+    };
+
+    /**
+     * Queues a NATS request to respect concurrency limits.
+     * Replaces the old strict serial queue which was too slow.
+     */
+    this.serialRequest = (subject, payload, options = {}) => {
+      return new Promise((resolve, reject) => {
+        const task = async () => {
+          const nc = await this.ensureConnection();
+          return nc.request(subject, payload, options);
+        };
+        this.requestQueue.push({ task, resolve, reject });
+        this.processQueue();
       });
-
-      // Ensure queue does not block on failures (catch individually inside the chain logic)
-      // Actually, chaining the result directly makes the next one wait for result resolution.
-      // We want to update queue pointer to catch errors so next request still runs.
-      this.requestQueue = result.catch(() => { });
-
-      return result;
     };
 
     /**
@@ -240,7 +318,144 @@ module.exports = function (RED) {
       return json;
     };
 
-    this.fetchProviderVariables = async (providerId) => {
+    // --- PROVIDER DEFINITION CACHE & LOOKUP ---
+    this.providerCache = new Map(); // Cache results: { timestamp, data }
+    this.pendingLookups = new Map(); // Deduplication: ProviderId -> Promise
+
+    /**
+     * Retrieves the provider definition (Variables List), utilizing Cache and Request Deduplication.
+     * Guaranteed to return a Promise that resolves to the definition object.
+     */
+    this.getProviderDefinition = async (inputProviderId) => {
+      const providerId = (inputProviderId || '').trim();
+      if (!providerId) return null;
+
+      // Check Cache First (Dedup)TTL 5 minutes)
+      const cached = this.providerCache.get(providerId);
+      if (cached && (Date.now() - cached.timestamp < 5 * 60 * 1000)) {
+        return cached.data;
+      }
+
+      // 2. Check for In-Flight Request (Deduplication)
+      if (this.pendingLookups.has(providerId)) {
+        this.log(`Joining pending lookup for provider '${providerId}'`);
+        return this.pendingLookups.get(providerId);
+      }
+
+      // 3. Start New Lookup
+      const lookupPromise = (async () => {
+        try {
+          // ENSURE MODULES LOADED
+          if (!this.payloads || !this.subjects) {
+            // Simple poll wait if modules aren't ready (should be fast)
+            let attempts = 0;
+            while ((!this.payloads || !this.subjects) && attempts < 20) {
+              await new Promise(r => setTimeout(r, 200));
+              attempts++;
+            }
+            if (!this.payloads) throw new Error("Modules failed to load.");
+          }
+
+          // 1. Attempt NATS Direct Query (v1.loc.{id}.def.qry.read)
+          // Some providers (like older u-OS services) only respond to this, not Registry.
+          try {
+            if (this.subjects && this.payloads && this.payloads.buildReadProviderDefinitionQuery) {
+              const directSubject = this.subjects.readProviderDefinitionQuery(providerId);
+              const reqPayload = this.payloads.buildReadProviderDefinitionQuery();
+
+              // Short timeout (1s) to be snappy
+              const responseMsg = await this.serialRequest(directSubject, reqPayload, { timeout: 1000 });
+
+              if (responseMsg && responseMsg.data) {
+                const decoded = this.payloads.decodeProviderDefinition(responseMsg.data);
+                if (decoded) {
+                  this.log(`Fetched definition via NATS Direct Query for '${providerId}' (Fingerprint: ${decoded.fingerprint})`);
+                  this.providerCache.set(providerId, { timestamp: Date.now(), data: decoded });
+                  return decoded;
+                }
+              }
+            }
+          } catch (directErr) {
+            this.debug(`NATS Direct Query failed for '${providerId}' (${directErr.message}). Trying Registry...`);
+          }
+
+          // 2. Attempt NATS Registry Lookup (Preferred: Provides Fingerprint)
+          // Uses v1.loc.registry.providers.{providerId}.def.qry.read
+          try {
+            if (this.subjects && this.payloads && this.payloads.buildReadProviderDefinitionQuery) {
+              const subject = this.subjects.registryProviderQuery(providerId);
+              const reqPayload = this.payloads.buildReadProviderDefinitionQuery();
+
+              // Use serialRequest to respect Semaphore 
+              // (Short timeout for Registry, faster failover to REST)
+              const responseMsg = await this.serialRequest(subject, reqPayload, { timeout: 2000 });
+
+              if (responseMsg && responseMsg.data) {
+                const decoded = this.payloads.decodeProviderDefinition(responseMsg.data);
+                if (decoded) {
+                  this.log(`Fetched definition via NATS Registry for '${providerId}' (Fingerprint: ${decoded.fingerprint})`);
+                  this.providerCache.set(providerId, { timestamp: Date.now(), data: decoded });
+                  return decoded;
+                }
+              }
+            }
+          } catch (natsErr) {
+            this.debug(`NATS Registry lookup failed for '${providerId}' (${natsErr.message}). Falling back to REST.`);
+          }
+
+          // 3. Fallback to REST API (Legacy/No Fingerprint)
+          const vars = await this.fetchProviderVariables(providerId);
+          if (!vars) {
+            // If both failed, we throw
+            throw new Error(`Definition lookup failed for '${providerId}' via both NATS and REST.`);
+          }
+
+          this.warn(`Using REST definition for '${providerId}'. Fingerprint missing (Write operations on strict providers may fail).`);
+
+          // Structure for consistency
+          const def = {
+            fingerprint: BigInt(0),
+            variables: vars
+          };
+
+          this.providerCache.set(providerId, { timestamp: Date.now(), data: def });
+          return def;
+
+        } catch (err) {
+          this.warn(`Definition lookup failed for '${providerId}': ${err.message}`);
+          throw err;
+        } finally {
+          this.pendingLookups.delete(providerId);
+        }
+      })();
+
+      this.pendingLookups.set(providerId, lookupPromise);
+      return lookupPromise;
+    };
+
+
+    /**
+     * Resolves a Variable Key to an ID using the cached definition.
+     */
+    this.resolveVariableId = async (providerId, variableKey) => {
+      try {
+        const def = await this.getProviderDefinition(providerId);
+        if (!def || !def.variables) return null;
+
+        const v = def.variables.find(v => v.key === variableKey);
+        if (v) return v.id;
+
+        // Try explicit numeric string fallback
+        if (!isNaN(variableKey)) return parseInt(variableKey);
+
+        return null;
+      } catch (e) {
+        return null; // Resolve failed
+      }
+    };
+
+    this.fetchProviderVariables = async (inputProviderId) => {
+      const providerId = (inputProviderId || '').trim();
       const token = await this.getToken();
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -335,124 +550,216 @@ module.exports = function (RED) {
     });
   }
 
-  if (!adminRoutesRegistered) {
-    adminRoutesRegistered = true;
-    RED.httpAdmin.get('/uos/providers/:id', async (req, res) => {
-      const node = RED.nodes.getNode(req.params.id);
-      if (!node) {
-        res.status(404).json({ error: 'config not found' });
-        return;
-      }
-      try {
+  // Helper for stateless or stateful token acquisition
+  const getStatelessToken = async (host, clientId, clientSecret) => {
+    const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const params = new URLSearchParams({ grant_type: 'client_credentials', scope: DEFAULT_SCOPE });
+    const res = await fetch(`https://${host}/oauth2/token`, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: params,
+      timeout: 5000
+    });
+    if (!res.ok) throw new Error(`Token Auth failed: ${res.status}`);
+    const json = await res.json();
+    return json.access_token;
+  };
+
+  RED.httpAdmin.get('/uos/providers/:id', async (req, res) => {
+    const nodeId = req.params.id;
+    const node = RED.nodes.getNode(nodeId);
+
+    try {
+      if (node) {
         const providers = await node.fetchProviders();
         res.json(providers);
-      }
-      catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    });
-    RED.httpAdmin.get('/uos/providers/:id/:providerId/variables', async (req, res) => {
-      const node = RED.nodes.getNode(req.params.id);
-      if (!node) {
-        res.status(404).json({ error: 'config not found' });
-        return;
-      }
-      try {
-        const vars = await node.fetchProviderVariables(req.params.providerId);
-        res.json(vars);
-      }
-      catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    });
-    RED.httpAdmin.get('/uos/oauth-scopes/:id', async (req, res) => {
-      const node = RED.nodes.getNode(req.params.id);
-      if (!node) {
-        res.status(404).json({ error: 'config not found' });
-        return;
-      }
-      try {
-        const scope = await node.getGrantedScopes();
-        res.json({ scope });
-      }
-      catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    });
+      } else {
+        // Stateless Mode: Check headers/query for manual config
+        const host = req.query.host || req.headers['x-uos-host'];
+        const startClientId = req.query.clientId || req.headers['x-uos-clientid'];
+        const startClientSecret = req.query.clientSecret || req.headers['x-uos-clientsecret'];
 
-    // Stateless connection check for "Test Connection" button
-    RED.httpAdmin.post('/uos/check-connection', async (req, res) => {
-      const { host, port, clientId, clientSecret } = req.body;
-      if (!host || !clientId || !clientSecret) {
-        res.status(400).json({ error: 'Missing host, clientId or clientSecret' });
-        return;
-      }
-
-      let nc = null;
-      try {
-        // 1. Get Token
-        const tokenEndpoint = `https://${host}/oauth2/token`;
-        const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        const params = new URLSearchParams({
-          grant_type: 'client_credentials',
-          scope: DEFAULT_SCOPE,
-        });
-
-        // Use custom agent to allow self-signed certs safely if needed (or rely on env var)
-        // Note: process.env.NODE_TLS_REJECT_UNAUTHORIZED is already handled globally in this file
-
-        const tokenRes = await fetch(tokenEndpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Basic ${basic}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Accept: 'application/json',
-          },
-          body: params,
-        });
-
-        if (!tokenRes.ok) {
-          throw new Error(`Token fetch failed: ${tokenRes.status} ${await tokenRes.text()}`);
+        if (!host || !startClientId || !startClientSecret) {
+          res.status(404).json({ error: 'config not found and no manual credentials provided' });
+          return;
         }
-        const tokenJson = await tokenRes.json();
-        const token = tokenJson.access_token;
 
-        // 2. Fetch Providers (API Check)
-        // Try fallback logic similar to instance method
-        const tryFetch = async (url) => {
-          const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
-          if (!r.ok && r.status !== 404) throw new Error(`API ${r.status}`);
+        // Perform manual fetch
+        const token = await getStatelessToken(host, startClientId, startClientSecret);
+        const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+
+        // Try fetch logic (simplified copy of fetchProviders)
+        const fetchFn = async (url) => {
+          const r = await fetch(url, { headers, timeout: 5000 });
+          if (!r.ok && r.status !== 404) throw new Error(`API error ${r.status}`);
           return r.ok ? r : null;
         };
 
-        let apiRes = await tryFetch(`https://${host}/u-os-hub/api/v1/providers`);
-        if (!apiRes) apiRes = await tryFetch(`https://${host}/datahub/v1/providers`);
+        let pRes = await fetchFn(`https://${host}/u-os-hub/api/v1/providers`);
+        if (!pRes) pRes = await fetchFn(`https://${host}/datahub/v1/providers`);
 
-        if (!apiRes) throw new Error('API endpoint not found');
-
-        const providers = await apiRes.json();
-        const count = Array.isArray(providers) ? providers.length : 0;
-
-        // 3. NATS Check (optional but good)
-        // We verify NATS connectivity quickly
-        nc = await connect({
-          servers: `nats://${host}:${port || 49360}`,
-          token,
-          name: `nodered-check-${Date.now()}`,
-          waitOnFirstConnect: true,
-          maxReconnectAttempts: 1,
-        });
-
-        res.json({ success: true, providers: count, providersList: providers, connected: true });
+        if (!pRes) throw new Error('Providers endpoint not found');
+        const data = await pRes.json();
+        res.json(data);
       }
-      catch (err) {
-        res.status(500).json({ error: err.message });
+    }
+    catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  RED.httpAdmin.get('/uos/providers/:id/:providerId/variables', async (req, res) => {
+    const nodeId = req.params.id;
+    const node = RED.nodes.getNode(nodeId);
+    const providerId = req.params.providerId;
+
+    try {
+      if (node) {
+        const vars = await node.fetchProviderVariables(providerId);
+        res.json(vars);
+      } else {
+        // Stateless Mode
+        const host = req.query.host || req.headers['x-uos-host'];
+        const startClientId = req.query.clientId || req.headers['x-uos-clientid'];
+        const startClientSecret = req.query.clientSecret || req.headers['x-uos-clientsecret'];
+
+        if (!host || !startClientId || !startClientSecret) {
+          res.status(404).json({ error: 'config not found and no manual credentials provided' });
+          return;
+        }
+
+        const token = await getStatelessToken(host, startClientId, startClientSecret);
+        const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+        const fetchFn = async (url) => {
+          const r = await fetch(url, { headers, timeout: 5000 });
+          if (!r.ok && r.status !== 404) return null; // Safe fail
+          return r.ok ? r : null;
+        };
+
+        let vRes = await fetchFn(`https://${host}/u-os-hub/api/v1/providers/${providerId}`);
+        let variables = [];
+
+        // Metadata check
+        if (vRes) {
+          const meta = await vRes.json();
+          if (meta && Array.isArray(meta.variables)) {
+            variables = meta.variables;
+          }
+        }
+        if (variables.length === 0) {
+          vRes = await fetchFn(`https://${host}/u-os-hub/api/v1/providers/${providerId}/variables`);
+          if (!vRes) vRes = await fetchFn(`https://${host}/datahub/v1/providers/${providerId}/variables`);
+
+          if (vRes) variables = await vRes.json();
+        }
+
+        // Heuristic
+        if (Array.isArray(variables)) {
+          variables.forEach((v, i) => {
+            if (v.id === undefined && v.Id === undefined) {
+              v.id = i;
+            }
+          });
+        }
+
+        res.json(variables);
       }
-      finally {
-        if (nc) nc.drain().catch(() => { });
+    }
+    catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  RED.httpAdmin.get('/uos/oauth-scopes/:id', async (req, res) => {
+    const node = RED.nodes.getNode(req.params.id);
+    // Stateless scope check is tricky without full Oauth flow parse. 
+    // Skip for now or implement if critical.
+    if (!node) {
+      res.status(404).json({ error: 'config not found' });
+      return;
+    }
+    try {
+      const scope = await node.getGrantedScopes();
+      res.json({ scope });
+    }
+    catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Stateless connection check for "Test Connection" button
+  RED.httpAdmin.post('/uos/check-connection', async (req, res) => {
+    const { host, port, clientId, clientSecret } = req.body;
+    if (!host || !clientId || !clientSecret) {
+      res.status(400).json({ error: 'Missing host, clientId or clientSecret' });
+      return;
+    }
+
+    let nc = null;
+    try {
+      // 1. Get Token
+      const tokenEndpoint = `https://${host}/oauth2/token`;
+      const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      const params = new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: DEFAULT_SCOPE,
+      });
+
+      // Use custom agent to allow self-signed certs safely if needed (or rely on env var)
+      // Note: process.env.NODE_TLS_REJECT_UNAUTHORIZED is already handled globally in this file
+
+      const tokenRes = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${basic}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: params,
+      });
+
+      if (!tokenRes.ok) {
+        throw new Error(`Token fetch failed: ${tokenRes.status} ${await tokenRes.text()}`);
       }
-    });
-  }
+      const tokenJson = await tokenRes.json();
+      const token = tokenJson.access_token;
+
+      // 2. Fetch Providers (API Check)
+      // Try fallback logic similar to instance method
+      const tryFetch = async (url) => {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+        if (!r.ok && r.status !== 404) throw new Error(`API ${r.status}`);
+        return r.ok ? r : null;
+      };
+
+      let apiRes = await tryFetch(`https://${host}/u-os-hub/api/v1/providers`);
+      if (!apiRes) apiRes = await tryFetch(`https://${host}/datahub/v1/providers`);
+
+      if (!apiRes) throw new Error('API endpoint not found');
+
+      const providers = await apiRes.json();
+      const count = Array.isArray(providers) ? providers.length : 0;
+
+      // 3. NATS Check (optional but good)
+      // We verify NATS connectivity quickly
+      nc = await connect({
+        servers: `nats://${host}:${port || 49360}`,
+        token,
+        name: `nodered-check-${Date.now()}`,
+        waitOnFirstConnect: true,
+        maxReconnectAttempts: 1,
+      });
+
+      res.json({ success: true, providers: count, providersList: providers, connected: true });
+    }
+    catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+    finally {
+      if (nc) nc.drain().catch(() => { });
+    }
+  });
+
 
   RED.nodes.registerType('uos-config', UosConfigNode, {
     credentials: {

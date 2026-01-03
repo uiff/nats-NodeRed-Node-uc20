@@ -94,8 +94,14 @@
             if (resp.providersList) {
               window.uOSProvidersCache = window.uOSProvidersCache || {};
               window.uOSProvidersCache[node.id] = resp.providersList;
-              console.log('Cached providers for', node.id, resp.providersList);
             }
+            // Cache credentials explicitly for stateless variable browsing
+            window.uOSTempConfig = window.uOSTempConfig || {};
+            window.uOSTempConfig[node.id] = {
+              host,
+              clientId,
+              clientSecret
+            };
           },
           error: function (jqXHR, textStatus, errorThrown) {
             const msg = jqXHR.responseJSON?.error || textStatus;

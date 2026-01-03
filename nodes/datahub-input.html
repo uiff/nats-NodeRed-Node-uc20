@@ -5,7 +5,7 @@
     defaults: {
       name: { value: "" },
       connection: { type: "uos-config", required: true },
-      providerId: { value: "", required: true },
+      providerId: { value: "", required: true }, // Changed default to empty to encourage selection
       manualVariables: { value: "" },
       triggerMode: { value: "event" },
       pollingInterval: { value: 0, validate: RED.validators.number() },
@@ -16,7 +16,7 @@
     icon: "datahub-read.svg",
     label: function () {
       if (this.name) return this.name;
-      return "DataHub - Read";
+      return this.providerId || "DataHub - Read";
     },
     paletteLabel: "DataHub - Read",
     oneditprepare: function () {
@@ -52,6 +52,66 @@
       $triggerMode.on('change', updateTriggerVisibility);
       updateTriggerVisibility();
 
+      // --- Provider Lookup Logic ---
+      $('#btn-lookup-provider').on('click', function () {
+        const configNodeId = $('#node-input-connection').val();
+        const $btn = $(this);
+
+        if (!configNodeId || configNodeId === "_ADD_") {
+          RED.notify("Please select a valid Configuration Node first.", "error");
+          return;
+        }
+
+        $btn.addClass('disabled').html('<i class="fa fa-spinner fa-spin"></i>');
+
+        $.getJSON('uos/providers/' + configNodeId, function (data) {
+          $btn.removeClass('disabled').html('<i class="fa fa-search"></i>');
+
+          if (!data || data.length === 0) {
+            RED.notify("No providers found.", "warning");
+            return;
+          }
+
+          // Build List
+          const providerList = data.map(p => {
+            const pid = p.id || p.Id || p;
+            return `<li class="red-ui-list-item provider-item" data-id="${pid}" style="cursor: pointer; padding: 8px; border-bottom: 1px solid #eee;">
+                      <i class="fa fa-cube"></i> <b>${pid}</b>
+                  </li>`;
+          }).join('');
+
+          const content = `<div style="padding:10px; font-size:12px; color:#666;">Select a provider to read from:</div>
+                               <ul style="list-style: none; padding: 0; margin:0; max-height: 300px; overflow-y: auto; border:1px solid #ddd;">${providerList}</ul>`;
+
+          const $dialog = $('<div id="provider-lookup-dialog"></div>')
+            .html(content)
+            .dialog({
+              title: "Select Provider",
+              width: 400,
+              modal: true,
+              buttons: {
+                "Cancel": function () { $(this).dialog("close"); }
+              }
+            });
+
+          // Click Handler
+          $dialog.find('.provider-item').hover(
+            function () { $(this).css("background-color", "#eef"); },
+            function () { $(this).css("background-color", "white"); }
+          ).click(function () {
+            const selectedId = $(this).data('id');
+            $("#node-input-providerId").val(selectedId);
+            $dialog.dialog("close");
+            $dialog.remove(); // Cleanup
+          });
+
+        }).fail(function (jqxhr) {
+          $btn.removeClass('disabled').html('<i class="fa fa-search"></i>');
+          RED.notify("Could not fetch providers. Ensure Config Node is DEPLOYED.", "error");
+        });
+      });
+
+
       // --- Variable Selector Logic ---
       const $fetchBtn = $('#btn-fetch-vars');
       const $listContainer = $('#variable-list-container');
@@ -61,17 +121,14 @@
       const $clearAllBtn = $('#btn-clear-all');
       const $hiddenManual = $('#node-input-manualVariables');
 
-      // Styles
-      // Adjusted: ID column removed per user request (Key is main identifier)
       const rowStyle = "display:grid; grid-template-columns: 30px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px;";
-      // const idStyle = ... (removed)
       const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
 
-      let currentVariables = []; // Stores {id, key, accessType, etc.}
+      let currentVariables = [];
 
       // Parse existing selection
       const getSelectedMap = () => {
-        const selected = new Map(); // Key -> ID
+        const selected = new Map();
         const raw = $hiddenManual.val();
         if (raw) {
           raw.split(',').forEach(entry => {
@@ -94,7 +151,6 @@
         const selectedMap = getSelectedMap();
 
         vars.forEach(v => {
-          // Robust ID handling
           let rawId = (v.id !== undefined && v.id !== null) ? v.id : v.Id;
           const safeId = (rawId !== undefined && rawId !== null) ? rawId : 'ERR';
           const isSelected = selectedMap.has(v.key);
@@ -105,15 +161,12 @@
           const cb = $('<input type="checkbox" class="var-checkbox">')
             .prop('checked', isSelected)
             .data('key', v.key)
-            .data('id', safeId); // ID strictly stored in data attribute
+            .data('id', safeId);
           cbContainer.append(cb);
-
-          // ID Column Removed from View
-          // const idBadge = ...
 
           const label = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
 
-          row.append(cbContainer).append(label); // No ID badge
+          row.append(cbContainer).append(label);
           $listContainer.append(row);
         });
       };
@@ -122,7 +175,7 @@
         const rows = $listContainer.find('.var-row');
         term = term.toLowerCase();
         rows.each(function () {
-          const text = $(this).find('div:nth-child(3)').text().toLowerCase(); // 3rd child is name
+          const text = $(this).find('div:nth-child(2)').text().toLowerCase(); // 2nd child is name (grid)
           $(this).toggle(text.indexOf(term) > -1);
         });
       };
@@ -156,21 +209,27 @@
         $statusMsg.text('Fetching...').css('color', 'blue');
         $listContainer.html('<div style="padding:20px; text-align:center;"><i class="fa fa-spinner fa-spin"></i> Loading...</div>');
 
-        $.getJSON('uos/providers/' + configNodeId + '/' + providerId + '/variables', function (data) {
-          $fetchBtn.prop('disabled', false);
-          $statusMsg.text('');
-          // Sort by ID (handle 'id' or 'Id')
-          currentVariables = data.sort((a, b) => {
-            const idA = (a.id !== undefined) ? a.id : a.Id;
-            const idB = (b.id !== undefined) ? b.id : b.Id;
-            return parseInt(idA) - parseInt(idB);
-          });
-          renderList(currentVariables);
-          $statusMsg.text(`Loaded ${data.length} variables.`).css('color', 'green');
-        }).fail(function (jqxhr) {
-          $fetchBtn.prop('disabled', false);
-          $statusMsg.text('Error: ' + (jqxhr.responseJSON?.error || 'Unknown')).css('color', 'red');
-          $listContainer.empty();
+        // Headers for stateless support would go here if we had access to credentials in editor? 
+        // We generally don't. But fetch providers works if deployed.
+
+        $.ajax({
+          url: 'uos/providers/' + configNodeId + '/' + providerId + '/variables',
+          success: function (data) {
+            $fetchBtn.prop('disabled', false);
+            $statusMsg.text('');
+            currentVariables = data.sort((a, b) => {
+              const idA = (a.id !== undefined) ? parseInt(a.id) : 0;
+              const idB = (b.id !== undefined) ? parseInt(b.id) : 0;
+              return idA - idB;
+            });
+            renderList(currentVariables);
+            $statusMsg.text(`Loaded ${data.length} variables.`).css('color', 'green');
+          },
+          error: function (jqxhr) {
+            $fetchBtn.prop('disabled', false);
+            $statusMsg.text('Error: ' + (jqxhr.responseJSON?.error || 'Unknown')).css('color', 'red');
+            $listContainer.html('<div style="padding:15px; color:#c00; text-align:center;">Failed to load variables.<br>Ensure Config is deployed.</div>');
+          }
         });
       });
 
@@ -179,11 +238,10 @@
       if (initialMap.size > 0 && currentVariables.length === 0) {
         const dummyVars = [];
         initialMap.forEach((id, key) => dummyVars.push({ id, key }));
-        // Just in case stored ID is undefined, show it so user can see it's broken
         renderList(dummyVars);
-        $statusMsg.text('Cached variables shown. Load again to refresh.').css('color', '#888');
+        $statusMsg.text('Cached selection shown. Load again to refresh.').css('color', '#888');
       } else {
-        $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Start by clicking <b>Load Variables</b>.<br><br>Empty Selection = <b>Read ALL</b></div>');
+        $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Click <b>Load Variables</b> to browse.</div>');
       }
     },
     oneditsave: function () {
@@ -193,7 +251,6 @@
         if ($(this).prop('checked')) {
           const k = $(this).data('key');
           const i = $(this).data('id');
-          // Important: Don't save if ID is 'ERR' or undefined
           if (k && i !== undefined && i !== 'ERR') {
             items.push(`${k}:${i}`);
           }
@@ -201,20 +258,15 @@
       });
       $('#node-input-manualVariables').val(items.join(','));
 
-      // 2. Save Polling Interval (calculate ms)
+      // 2. Save Polling Interval
       const val = parseInt($('#node-input-pollingInterval').val(), 10) || 0;
       const unit = $('#node-input-pollingUnit').val();
       let multiplier = 1;
       if (unit === 's') multiplier = 1000;
       if (unit === 'min') multiplier = 60000;
-
-      // We overwrite the raw value with calculated MS. 
-      // WAIT! The 'defaults' define pollingInterval. If we overwrite it here, the UI input needs to read it back correctly in oneditprepare.
-      // Actually, standard pattern is to store the MS value in 'pollingInterval' and recover the Unit in UI.
-      // But my oneditprepare logic for unit recovery was heuristic. Let's make it robust by trusting the calculation.
       const totalMs = val * multiplier;
       $('#node-input-pollingInterval').val(totalMs);
-      $('#node-input-pollingUnit').val(unit); // Also save the unit
+      $('#node-input-pollingUnit').val(unit);
     }
   });
 </script>
@@ -232,37 +284,37 @@
 
     <div class="form-row">
         <label for="node-input-providerId"><i class="fa fa-server"></i> Provider ID</label>
-        <div style="display:flex; gap:5px;">
+        <div style="display:flex;">
             <input type="text" id="node-input-providerId" placeholder="e.g. u_os_adm" style="flex:1;">
-            <button id="btn-fetch-vars" class="red-ui-button"><i class="fa fa-refresh"></i> Load Variables</button>
+            <a id="btn-lookup-provider" class="red-ui-button" style="margin-left: 5px;" title="Search Providers"><i class="fa fa-search"></i></a>
         </div>
-        <div id="fetch-status" style="margin-top:5px; font-size:0.9em; min-height:1.2em;"></div>
     </div>
 
-    <div class="form-row" style="border:1px solid #ccc; padding:0; border-radius:4px; background:#fff;">
-        <div style="background:#f7f7f7; padding:8px 10px; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-weight:bold; font-size:12px;"><i class="fa fa-list-ul"></i> Selection</span>
-            <input type="text" id="node-input-var-search" placeholder="Filter..." style="width:120px; font-size:11px; padding:2px;">
+    <div class="form-row">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+             <label><i class="fa fa-list"></i> Variables</label>
+             <button id="btn-fetch-vars" class="red-ui-button red-ui-button-small"><i class="fa fa-refresh"></i> Load Variables</button>
         </div>
+        <div id="fetch-status" style="font-size:0.9em; min-height:1.2em; text-align:right; margin-bottom:5px;"></div>
         
-        <div style="display:grid; grid-template-columns: 30px 1fr; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
-            <div style="text-align:center;"><i class="fa fa-check-square-o"></i></div>
-            <div style="padding-left:10px;">Name</div>
-        </div>
+        <div style="border:1px solid #ccc; padding:0; border-radius:4px; background:#fff;">
+            <div style="background:#f7f7f7; padding:4px 10px; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; font-weight:bold;">Select Variables</span>
+                <input type="text" id="node-input-var-search" placeholder="Filter..." style="width:100px; font-size:11px; padding:2px;">
+            </div>
+            
+            <div id="variable-list-container" style="height:250px; overflow-y:auto; background:white;">
+               <!-- Variables -->
+            </div>
 
-        <div id="variable-list-container" style="height:250px; overflow-y:auto; background:white;">
-           <!-- Variables -->
-        </div>
-
-        <div style="background:#f7f7f7; padding:8px 10px; border-top:1px solid #ddd; display:flex; gap:10px;">
-            <button id="btn-select-all" class="red-ui-button red-ui-button-small">Select All</button>
-            <button id="btn-clear-all" class="red-ui-button red-ui-button-small">Clear All</button>
-            <div style="flex:1; text-align:right; color:#888; font-size:11px; padding-top:4px;">Empty = Read ALL</div>
+            <div style="background:#f7f7f7; padding:5px 10px; border-top:1px solid #ddd; display:flex; gap:10px;">
+                <button id="btn-select-all" class="red-ui-button red-ui-button-small">All</button>
+                <button id="btn-clear-all" class="red-ui-button red-ui-button-small">None</button>
+                <div style="flex:1; text-align:right; color:#888; font-size:10px; padding-top:4px;">Empty selection reads ALL variables</div>
+            </div>
         </div>
         <input type="hidden" id="node-input-manualVariables">
     </div>
-
-    <hr style="margin:15px 0;">
 
     <div class="form-row">
         <label for="node-input-triggerMode"><i class="fa fa-bolt"></i> Trigger</label>
@@ -284,112 +336,11 @@
 </script>
 
 <script type="text/html" data-help-name="datahub-input">
-    <p><b>DataHub - Read</b> reads variables from u-OS Data Hub providers and outputs their values as JSON messages.</p>
-    
-    <h3>Quick Start</h3>
-    <ol>
-        <li>Select a <b>u-OS Config</b> node (create one if needed)</li>
-        <li>Enter the <b>Provider ID</b> (e.g. <code>u_os_adm</code>)</li>
-        <li>Add variables using the <b>Variables Table</b></li>
-        <li>Deploy and send a message to the input port to trigger a read</li>
-    </ol>
-
+    <p><b>DataHub - Read</b> reads variables from u-OS Data Hub providers.</p>
     <h3>Configuration</h3>
-    
-    <h4>1. Config Node</h4>
-    <p>
-        Select your u-OS connection settings. If you haven't created one yet, click the <b>pencil icon</b> next to "Config" to create a new uos-config node.
-    </p>
-
-    <h4>2. Provider ID</h4>
-    <p>
-        The name of the data source you want to read from.
-    </p>
-    <p><b>How to find it:</b></p>
-    <ul>
-        <li><b>Web UI:</b> u-Control → Data Hub → Providers → Note the Provider ID</li>
-        <li><b>Common examples:</b> <code>u_os_adm</code>, <code>hub</code>, <code>custom-provider</code></li>
-    </ul>
-
-    <h4>3. Variables Table</h4>
-    <p>
-        Use the <b>Load Variables</b> button to browse and select variables from the provider.
-        Selected variables are automatically added to the list.
-    </p>
-
-    <h5>Manual Entry (Fallback)</h5>
-    <p>
-        If the "Load Variables" feature is unavailable, you can manually add variables by editing the <code>manualVariables</code> property (Advanced).
-    </p>
-
-    <h4>4. Trigger Mode</h4>
-    <dl>
-        <dt>Event (on change) – Default</dt>
-        <dd>Efficient. Outputs only when values change. Recommended for most use cases.</dd>
-        
-        <dt>Poll (interval)</dt>
-        <dd>Forces periodic reads (e.g. every 1000ms). Use if you need guaranteed updates regardless of changes.</dd>
-    </dl>
-
-    <h3>Output Format</h3>
-    <p>When triggered (via input port), the node outputs:</p>
-    <pre><code>{
-  "type": "snapshot",
-  "variables": [
-    {
-      "providerId": "u_os_adm",
-      "id": 0,
-      "key": "manufacturer_name",
-      "value": "Weidmüller",
-      "quality": "GOOD",
-      "timestampNs": 1234567890000000000
-    }
-  ]
-}</code></pre>
-
-    <h3>Triggering Reads</h3>
-    <p>
-        Connect an <b>Inject</b> node to the input port. Sending any message triggers an immediate read.
-    </p>
-    <p>
-        <b>Event Mode:</b> Also outputs automatically when values change.<br>
-        <b>Poll Mode:</b> Reads at the specified interval (e.g. every 1000ms).
-    </p>
-
-    <h3>⚠️ Important: Don't Read Your Own Output Provider</h3>
-    <p>
-        <b>Do NOT</b> use the provider created by your <b>DataHub - OUT</b> node (e.g. <code>nodered</code>) as input.
-    </p>
-    <p><b>Why?</b></p>
-    <ul>
-        <li>The Output provider only exists <b>while Node-RED is running</b></li>
-        <li>On restart, the provider disappears → Input node fails</li>
-        <li>This creates a circular dependency</li>
-    </ul>
-    <p><b>What to use instead:</b></p>
-    <ul>
-        <li>Read from <b>system providers</b> (e.g. <code>u_os_adm</code>, <code>hub</code>)</li>
-        <li>Read from <b>other apps/devices</b> (not your own Node-RED)</li>
-    </ul>
-
-    <h3>Troubleshooting</h3>
-    
-    <h4>No Output</h4>
-    <ul>
-        <li>✓ Config node deployed?</li>
-        <li>✓ Provider ID correct?</li>
-        <li>✓ Variable IDs correct?</li>
-        <li>✓ Inject signal sent to input port?</li>
-    </ul>
-
-    <h4>"Variable not found"</h4>
-    <ul>
-        <li>Double-check the IDs in your table</li>
-        <li>Verify IDs match those in the Python config or Web UI</li>
-    </ul>
-
-    <div style="margin-top:15px; padding-top:10px; border-top:1px solid #ddd; font-size:0.85em; color:#666;">
-        <p><b>Developed by <a href="https://www.linkedin.com/in/iotueli/" target="_blank">IoTUeli</a></b></p>
-        <p>Not an official Weidmüller product. Community contribution.</p>
-    </div>
+    <ol>
+        <li><b>Config:</b> Select your u-OS connection.</li>
+        <li><b>Provider ID:</b> ID of the data source (e.g., <code>u_os_adm</code>). Use the search button to find available providers.</li>
+        <li><b>Variables:</b> Click "Load Variables" to select specific data points. Leave empty to read everything.</li>
+    </ol>
 </script>

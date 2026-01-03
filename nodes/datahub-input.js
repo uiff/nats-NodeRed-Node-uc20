@@ -26,7 +26,7 @@ module.exports = function (RED) {
       return;
     }
 
-    this.providerId = config.providerId || 'sampleprovider';
+    this.providerId = (config.providerId || 'sampleprovider').trim();
     this.triggerMode = config.triggerMode || 'event';
     this.pollingInterval = this.triggerMode === 'poll' ? (parseInt(config.pollingInterval, 10) || 1000) : 0;
 
@@ -121,140 +121,51 @@ module.exports = function (RED) {
         const { ReadVariablesQueryResponse } = readRespMod;
         const { VariablesChangedEvent } = changeEventMod;
 
-        // Try to fetch definitions (Discovery), but respect manual defs
+        // Optimierte Discovery: Zentraler Abruf über Config Node (Cached & Deduped)
         try {
-          // Verify connection first or use connection helper? 
-          // fetchProviderVariables uses HTTP, so it's independent of 'nc'
-          const definitions = await connection.fetchProviderVariables(this.providerId);
-          definitions.forEach((def) => defMap.set(def.id, def));
-        } catch (e) {
-          // Only warn if we don't have manual defs to fall back on
-          if (this.manualDefs.length === 0) {
-            this.warn(`REST API failed (${e.message}). Attempting NATS fallback...`);
+          // Versuche primär die NATS-Definition via Config Node zu holen
+          if (typeof connection.getProviderDefinition === 'function') {
+            const def = await connection.getProviderDefinition(this.providerId);
+            if (def && def.variables) {
+              def.variables.forEach((d) => defMap.set(d.id, d));
+              this.debug(`Loaded ${def.variables.length} variables from Central Cache for ${this.providerId}`);
+            }
           } else {
-            this.warn(`REST API Discovery failed, but using ${this.manualDefs.length} manual definitions.`);
+            const definitions = await connection.fetchProviderVariables(this.providerId);
+            if (definitions) definitions.forEach((def) => defMap.set(def.id, def));
           }
-
+        } catch (e) {
+          // ... legacy fallback logic ...
+          // (Simplified for replacement block to match existing context)
+          // If NATS discovery failed, try fetchProviderVariables (REST) logic...
+          this.debug(`Central NATS Discovery failed (${e.message}). Trying REST Fallback...`);
           try {
-            // Fallback: Fetch definitions via NATS
-            // ... import and logic remains ... 
-            // We can skip NATS fetch if manual defs are sufficient? 
-            // Better to try anyway to get Metadata (DataType etc).
-            const { ReadProviderDefinitionQueryResponse } = await import(pathToFileURL(path.join(__dirname, '..', 'lib', 'fbs', 'weidmueller', 'ucontrol', 'hub', 'read-provider-definition-query-response.js')).href);
-          } catch (natsErr) {
-            if (this.manualDefs.length === 0) this.warn(`NATS definition fetch also failed: ${natsErr.message}`);
+            const definitions = await connection.fetchProviderVariables(this.providerId);
+            if (definitions) definitions.forEach((def) => defMap.set(def.id, def));
+          } catch (restErr) {
+            if (this.manualDefs.length === 0) {
+              this.warn(`Discovery failed: ${restErr.message}. Using Manual/Raw.`);
+            }
           }
         }
 
-
+        // CRITICAL FIX: Acquire NATS Connection!
         nc = await connection.acquire();
-        this.status({ fill: 'green', shape: 'dot', text: 'connected' });
 
-        // Retry Definition Fetch via NATS if Map is empty OR if we have Heuristic IDs (missingId)
-        // Heuristic IDs (ID=Index) are dangerous because they might not match the real NATS IDs (e.g. 291 vs 5)
-        const hasMissingIds = Array.from(defMap.values()).some(d => d.missingId);
 
-        if ((defMap.size === 0 && this.manualDefs.length === 0) || hasMissingIds) {
-          try {
-            // Changed from warn to debug to reduce noise as per user request
-            this.debug(hasMissingIds
-              ? `Loaded variables have unresolved IDs (Heuristic). Attempting NATS Discovery to resolve real IDs for ${this.providerId}...`
-              : `Attempting NATS Discovery (Direct) for ${this.providerId}...`
-            );
-
-            // Strategy 1: Direct Provider Query (Standard for many providers)
-            const requestOptions = { timeout: 2000 };
-            // Reuse serialRequest if available to avoid blocking connection? 
-            // Discovery is one-off, nc.request is fine, but safer to use serial if we updated input.js fully. 
-            // Start uses 'nc' directly currently. That's fine for now as it's sequential in 'start'.
-
-            const defMsg = await nc.request(subjects.readProviderDefinitionQuery(this.providerId), payloads.buildReadProviderDefinitionQuery(), requestOptions);
-            const defs = payloads.decodeProviderDefinition(defMsg.data);
-
-            if (defs && defs.variables.length > 0) {
-              this.debug(`NATS Discovery Successful: Received ${defs.variables.length} definitions with real IDs.`);
-              // Overwrite/Update defMap
-              // Logic: Match by KEY. DataHub providers should have unique keys.
-              // If we have existing "fake" ID 5 for "temp", and NATS says "temp" is ID 291.
-              // We need to update defMap to use 291.
-
-              // Clear Heuristic entries if we trust NATS fully? 
-              // Or just merge?
-              // Safer: Create a lookup from NATS.
-              const realMap = new Map();
-              defs.variables.forEach(d => realMap.set(d.key, d));
-
-              // Update existing defMap
-              // If we had a heuristic entry, replace it.
-              // We rebuild defMap based on NATS mostly, but keep manual fallback?
-
-              // Let's iterate NATS defs and Populating defMap.
-              // Note: NATS Defs don't have 'missingId'.
-              defs.variables.forEach(d => {
-                // If we overwrite, we lose manual metadata (if any)? 
-                // REST might have had better metadata? Usually NATS is source of truth for IDs.
-                defMap.set(d.id, d);
-              });
-
-              // Use Key Matching to remove old Heuristic entries?
-              // Heuristic entries are stored by Key (via fetchProviderVariables logic? No, by ID).
-              // We need to clean up the Fake IDs (0..N) if they don't map to real IDs.
-              // Actually, if we just add real IDs, we have duplicates?
-              // Map is Key=ID.
-              // Fake ID 5: { key: 'voltage' }
-              // Real ID 291: { key: 'voltage' }
-              // If user selected 'voltage', filtering uses KEYS (processStates line 104).
-              // Resolution (line 195) iterates values and matches Key.
-              // It will find BOTH 5 and 291.
-              // targetIds will get [5, 291].
-              // DataHub gets request [5, 291].
-              // 5 is invalid -> ignored.
-              // 291 is valid -> returns value.
-              // Result: It works! (Partially, effectively).
-
-              // But cleaner to remove heuristic ones.
-              for (const [id, def] of defMap.entries()) {
-                if (def.missingId) {
-                  const real = realMap.get(def.key);
-                  if (real && real.id !== id) {
-                    defMap.delete(id); // Remove fake ID
-                  }
-                }
-              }
-              this.warn(`IDs resolved via NATS. Mapped ${defs.variables.length} real IDs.`);
-            }
-
-          } catch (firstErr) {
-            // Strategy 2: Registry Query
-            try {
-              if (!hasMissingIds) { // Only log if we were truly empty
-                this.warn(`NATS Direct failed (${firstErr.message}), trying Registry Discovery...`);
-              }
-              const regMsg = await nc.request(subjects.registryProviderQuery(this.providerId), payloads.buildReadProviderDefinitionQuery(), { timeout: 2000 });
-              const defs = payloads.decodeProviderDefinition(regMsg.data);
-              if (defs && defs.variables.length > 0) {
-                this.warn(`NATS Registry Discovery: Loaded ${defs.variables.length} variables.`);
-                // Same merge logic
-                const realMap = new Map();
-                defs.variables.forEach(d => realMap.set(d.key, d));
-                defs.variables.forEach(d => defMap.set(d.id, d));
-                for (const [id, def] of defMap.entries()) {
-                  if (def.missingId) {
-                    const real = realMap.get(def.key);
-                    if (real && real.id !== id) {
-                      defMap.delete(id);
-                    }
-                  }
-                }
-              }
-            } catch (secondErr) {
-              if (!hasMissingIds) {
-                this.warn(`All Discovery methods failed (REST, NATS Direct, NATS Registry). Please use Manual Definitions (Name:ID). Error: ${secondErr.message}`);
-              } else {
-                this.warn(`NATS ID Resolution failed. Continuing with Heuristic (Index-based) IDs. This generally fails for advanced providers.`);
-              }
-            }
+        // Apply Manual Overrides / Additions
+        this.manualDefs.forEach(d => {
+          if (!defMap.has(d.id)) {
+            defMap.set(d.id, { ...d, type: 'MANUAL', dataType: 'UNKNOWN', access: 'READ_ONLY' });
           }
+        });
+
+        // GATE: If no definitions found (Discovery Failed AND No Manual), skip polling to avoid 503 spam
+        const hasDefinitions = defMap.size > 0;
+        if (!hasDefinitions) {
+          this.warn(`Startup Aborted for '${this.providerId}': No Variable Definitions found (Discovery failed & No Manual Defs). Polling/Snapshot would just error 503.`);
+          this.status({ fill: 'red', shape: 'dot', text: 'discovery failed' });
+          return; // Stop here, do not start Interval or Subscription
         }
 
         performSnapshot = async () => {
@@ -265,7 +176,6 @@ module.exports = function (RED) {
           }
 
           try {
-            // Resolve requested variable names to IDs
             // Resolve requested variable names to IDs
             let targetIds = [];
             let isWildcard = (this.variables.length === 0);
@@ -283,14 +193,8 @@ module.exports = function (RED) {
               // CRITICAL FIX: If user requested specific variables but we found NONE, 
               // we MUST NOT send an empty list, because that would interpret as "Read All".
               if (targetIds.length === 0) {
-                if (defMap.size > 0) {
-                  this.warn(`Snapshot Aborted: None of the ${this.variables.length} requested variables could be resolved to IDs. (Provider has ${defMap.size} vars).`);
-                } else {
-                  // If defMap is empty (Discovery failed), we might want to try reading ALL to see if we get lucky? 
-                  // Or just rely on Manual Defs fallback which would have populated defMap.
-                  // Safe default: Abort to avoid flooding if discovery failed.
-                  this.warn('Snapshot Aborted: Provider Definition not ready (no IDs resolved).');
-                }
+                // Already handled by Gate above mostly, but good for safety
+                this.warn(`Snapshot Aborted: None of the ${this.variables.length} requested variables could be resolved to IDs.`);
                 return;
               }
             }
@@ -298,70 +202,121 @@ module.exports = function (RED) {
             // If Wildcard (empty targetIds and isWildcard=true) -> Request ALL.
             // If Specific (targetIds has items) -> Request specific.
             // Use serialRequest via Config Node to prevent concurrency issues on the connection
-            let snapshotMsg;
-            if (typeof connection.serialRequest === 'function') {
-              snapshotMsg = await connection.serialRequest(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 5000 });
-            } else {
-              // Fallback for older config nodes (should not happen if package updated correctly)
-              snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 5000 });
-            }
-
-            const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
-            const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
-            const states = payloads.decodeVariableList(snapshotObj.variables());
-
-            // Re-process states (lookup names, formatting)
-            const filteredSnapshot = processStates(states);
-
-            if (filteredSnapshot.length > 0) {
-              this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
-            } else {
-              if (states.length > 0) {
-                this.warn(`Snapshot received data but everything was filtered out. Check Variable selection. Debug: First raw ID: ${states[0].id}, DefMap has it? ${defMap.has(states[0].id)}`);
-              } else {
-                // EMPTY RESPONSE
-                // Check if we requested multiple IDs. Some providers fail on bulk read.
-                if (targetIds.length > 1) {
-                  this.warn(`Snapshot Bulk Read failed (Empty List). Retrying ${targetIds.length} variables individually...`);
-                  const accumulatedStates = [];
-
-                  for (const id of targetIds) {
-                    try {
-                      let msg;
-                      if (typeof connection.serialRequest === 'function') {
-                        msg = await connection.serialRequest(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery([id]), { timeout: 2000 });
-                      } else {
-                        msg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery([id]), { timeout: 2000 });
-                      }
-                      const singleResponse = payloads.decodeVariableList(ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(new flatbuffers.ByteBuffer(msg.data)).variables());
-                      if (singleResponse.length > 0) {
-                        accumulatedStates.push(...singleResponse);
-                      }
-                    } catch (e) { /* ignore single failures */ }
-                  }
-
-                  const accumulatedFiltered = processStates(accumulatedStates);
-                  if (accumulatedFiltered.length > 0) {
-                    this.send({ payload: { type: 'snapshot', variables: accumulatedFiltered } });
-                    this.warn(`Snapshot Recovery successful! Retrieved ${accumulatedFiltered.length} items via single requests.`);
-                    return; // Success
-                  }
+            // Simple Snapshot Logic using Config Node Semaphore
+            // The Config Node now handles concurrency (max 3 parallel), preventing 503s naturally.
+            // We use a simple retry wrapper just in case.
+            let lastError;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                let snapshotMsg;
+                // If config node has serialRequest (Semaphore), use it.
+                if (typeof connection.serialRequest === 'function') {
+                  snapshotMsg = await connection.serialRequest(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 10000 });
+                } else {
+                  // Fallback to direct request (unsafe)
+                  snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 10000 });
                 }
 
-                this.warn(`Snapshot received empty list from Data Hub. (Requested ${targetIds.length > 0 ? targetIds.length + ' specific IDs' : 'ALL variables'}).`);
+                const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
+                const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
+                const states = payloads.decodeVariableList(snapshotObj.variables());
+
+                const filteredSnapshot = processStates(states);
+                if (filteredSnapshot.length > 0) {
+                  this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
+                  this.status({ fill: 'green', shape: 'dot', text: 'active' });
+                } else {
+                  // Handle empty/partial...
+                  this.status({ fill: 'green', shape: 'ring', text: 'active (empty)' });
+                }
+                return true; // Success
+
+              } catch (err) {
+                lastError = err;
+                // If semaphore is full or timeout, wait a bit
+                await new Promise(r => setTimeout(r, 1000 * attempt));
               }
             }
-          } catch (requestErr) {
-            this.warn(`Snapshot failed: ${requestErr.message}`);
+            if (lastError) {
+              const msg = lastError.message || '';
+              if (msg.includes('503') || msg.includes('no responders')) {
+                this.debug(`Snapshot skipped (Provider offline/503): ${msg}`);
+                this.status({ fill: 'yellow', shape: 'dot', text: 'provider offline' });
+              } else if (msg.includes('Cooldown')) {
+                this.debug(`Snapshot skipped (Cooldown): ${msg}`);
+                this.status({ fill: 'yellow', shape: 'ring', text: 'cooldown (10s)' });
+              } else if (msg.includes('Authorization') || msg.includes('Permission')) {
+                this.debug(`Snapshot skipped (Auth): ${msg}`);
+                this.status({ fill: 'yellow', shape: 'ring', text: 'auth failed' });
+              } else {
+                this.warn(`Snapshot failed: ${msg}`);
+                this.status({ fill: 'red', shape: 'ring', text: 'snapshot error' });
+              }
+            }
+          } catch (e) {
+            const msg = e.message || '';
+            if (msg.includes('503') || msg.includes('no responders')) {
+              this.debug(`Snapshot skipped (Provider offline/503): ${msg}`);
+            } else if (msg.includes('Cooldown')) {
+              // Ignore cooldown errors in outer catch
+            } else {
+              this.warn(`Snapshot failed: ${msg}`);
+            }
           }
         };
 
 
 
-        // Initial snapshot with random jitter into prevent concurrency overload
-        // (If multiple nodes start simultaneously)
-        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 500) + 100));
         await performSnapshot();
+
+        // RECONNECT LOGIC
+        const setupSubscription = async () => {
+          // Ensure we are using the latest connection
+          try {
+            nc = await connection.acquire();
+          } catch (e) {
+            this.debug(`Reconnect acquire failed: ${e.message}`);
+            return;
+          }
+
+          if (sub) {
+            try { await sub.drain(); } catch (e) { }
+          }
+
+          this.log(`Subscribing to changes for ${this.providerId}...`);
+          sub = nc.subscribe(subjects.varsChangedEvent(this.providerId));
+          (async () => {
+            for await (const msg of sub) {
+              const eventBB = new flatbuffers.ByteBuffer(msg.data);
+              const event = VariablesChangedEvent.getRootAsVariablesChangedEvent(eventBB);
+              const changeStates = payloads.decodeVariableList(event.changedVariables());
+              const filtered = processStates(changeStates);
+              if (filtered.length === 0) {
+                continue;
+              }
+              this.send({ payload: { type: 'change', variables: filtered } });
+            }
+          })().catch((err) => {
+            // ... error handling similar to below ...
+            let txt = 'sub error';
+            let msg = err.message || '';
+            if (msg.includes('Authorization') || msg.includes('permissions') || msg.includes('10003')) {
+              txt = 'auth violation';
+            }
+            // Only show red if it's not a known disconnect
+            if (!msg.includes('closed') && !msg.includes('draining')) {
+              this.status({ fill: 'red', shape: 'ring', text: txt });
+              this.warn(`subscription error: ${err.message}`);
+            }
+          });
+        };
+
+        connection.on('reconnected', () => {
+          this.log('NATS Connection restored. Refreshing Snapshot & Subscription...');
+          this.status({ fill: 'green', shape: 'ring', text: 'reconnected' });
+          performSnapshot(); // Refresh values
+          setupSubscription(); // Re-suscriber
+        });
 
         // Setup polling if configured
         if (this.pollingInterval > 0) {
@@ -370,22 +325,7 @@ module.exports = function (RED) {
           }, this.pollingInterval);
         }
 
-        sub = nc.subscribe(subjects.varsChangedEvent(this.providerId));
-        (async () => {
-          for await (const msg of sub) {
-            const eventBB = new flatbuffers.ByteBuffer(msg.data);
-            const event = VariablesChangedEvent.getRootAsVariablesChangedEvent(eventBB);
-            const changeStates = payloads.decodeVariableList(event.changedVariables());
-            const filtered = processStates(changeStates);
-            if (filtered.length === 0) {
-              continue;
-            }
-            this.send({ payload: { type: 'change', variables: filtered } });
-          }
-        })().catch((err) => {
-          this.status({ fill: 'red', shape: 'ring', text: 'sub error' });
-          this.error(`subscription error: ${err.message}`);
-        });
+        await setupSubscription();
       }
       catch (err) {
         this.status({ fill: 'red', shape: 'ring', text: err.message });

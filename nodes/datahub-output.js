@@ -90,6 +90,13 @@ module.exports = function (RED) {
       pId = defaultId;
     }
     this.providerId = pId;
+
+    // SAFETY: Prevent impersonating the system provider
+    if (this.providerId.toLowerCase() === 'u_os_sbm') {
+      this.error("CRITICAL ERROR: You cannot name your Provider 'u_os_sbm'. This ID is reserved for the Device itself! Please change it.");
+      this.status({ fill: 'red', shape: 'ring', text: 'illegal ID: u_os_sbm' });
+      return; // Stop initialization
+    }
     // this.definitions = config.definitions || [];
 
     const defMap = new Map();
@@ -99,6 +106,10 @@ module.exports = function (RED) {
     let fingerprint = 0;
     let nc;
     let sub;
+
+    // SINGLETON TRACKER (Module Level)
+    // Map<ProviderId, NodeId>
+    const providerRegistry = new Map();
 
     const ensureDefinition = (key, dataType) => {
       const normalized = key.trim();
@@ -122,9 +133,22 @@ module.exports = function (RED) {
       return { def, created: true };
     };
 
+    // Check Singleton Status
+    let isPrimary = false;
+    const existingNodeId = providerRegistry.get(this.providerId);
+    if (existingNodeId && existingNodeId !== this.id) {
+      this.warn(`Collision: Provider ID '${this.providerId}' is already managed by node '${existingNodeId}'. This node will be SECONDARY (Send Only).`);
+      isPrimary = false;
+    } else {
+      providerRegistry.set(this.providerId, this.id);
+      isPrimary = true;
+    }
+
     // --- SEND DEFINITION HELPER ---
     const sendDefinitionUpdate = async (modPayloads, modSubjects) => {
       if (!nc) return;
+      if (!isPrimary) return; // Only Primary sends definitions
+
       try {
         const { payload, fingerprint: fp } = modPayloads.buildProviderDefinitionEvent(definitions);
         const subject = modSubjects.providerDefinitionChanged(this.providerId);
@@ -167,6 +191,9 @@ module.exports = function (RED) {
       // If we have no definitions yet, nothing to send
       if (definitions.length === 0) return;
 
+      // Secondary nodes do NOT send heartbeats (conflicts with Primary)
+      if (!isPrimary) return;
+
       // Log heartbeat occasionally to prove aliveness
       const nowMs = Date.now();
       if (!this.lastHeartbeatLog || nowMs - this.lastHeartbeatLog > 10000) {
@@ -198,7 +225,7 @@ module.exports = function (RED) {
       console.log('[DataHub Output] Connection restored (event). Re-sending definition...');
       this.status({ fill: 'green', shape: 'ring', text: 'reconnected' });
       // Force definition update immediately upon reconnection
-      if (loadedPayloads && loadedSubjects) {
+      if (loadedPayloads && loadedSubjects && isPrimary) {
         sendDefinitionUpdate(loadedPayloads, loadedSubjects).catch(err => {
           this.warn(`Reconnect update error: ${err.message}`);
         });
@@ -222,40 +249,46 @@ module.exports = function (RED) {
 
         if (definitions.length > 0) {
           // Initial publish
-          await sendDefinitionUpdate(payloads, subjects);
+          if (isPrimary) {
+            await sendDefinitionUpdate(payloads, subjects);
 
-          // Subscribe to Registry State changes
-          nc.subscribe(subjects.registryStateEvent(), {
-            callback: (err, msg) => {
-              if (err) return;
-              try {
-                const state = payloads.parseRegistryStateEvent(msg.data);
-                if (state === 1) { // 1 = RUNNING
-                  console.log('[DataHub Output] Registry is RUNNING. Re-publishing definition...');
-                  sendDefinitionUpdate(payloads, subjects);
+            // Subscribe to Registry State changes
+            nc.subscribe(subjects.registryStateEvent(), {
+              callback: (err, msg) => {
+                if (err) return;
+                try {
+                  const state = payloads.parseRegistryStateEvent(msg.data);
+                  if (state === 1) { // 1 = RUNNING
+                    console.log('[DataHub Output] Registry is RUNNING. Re-publishing definition...');
+                    sendDefinitionUpdate(payloads, subjects);
+                  }
+                } catch (e) {
+                  console.warn('[DataHub Output] Registry state parse error:', e);
                 }
-              } catch (e) {
-                console.warn('[DataHub Output] Registry state parse error:', e);
               }
-            }
-          });
-          console.log('[DataHub Output] Subscribed to Registry State.');
+            });
+            console.log('[DataHub Output] Subscribed to Registry State.');
+          }
         }
 
-        // Listen for Variable READ requests
-        sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
-          callback: (err, msg) => {
-            if (err) {
-              if (err.message.includes('Permissions Violation')) {
+        // Listen for Variable READ requests (ONLY PRIMARY)
+        if (isPrimary) {
+          sub = nc.subscribe(subjects.readVariablesQuery(this.providerId), {
+            callback: (err, msg) => {
+              if (err) {
+                if (err.message.includes('Permissions Violation')) {
+                  return;
+                }
+                this.warn(`Read request error: ${err.message}`);
                 return;
               }
-              this.warn(`Read request error: ${err.message}`);
-              return;
-            }
-            handleRead(payloads, msg).catch((error) => this.warn(error.message));
-          },
-        });
-        console.log('[DataHub Output] Subscribed to Read Query.');
+              handleRead(payloads, msg).catch((error) => this.warn(error.message));
+            },
+          });
+          console.log('[DataHub Output] Subscribed to Read Query.');
+        } else {
+          this.status({ fill: 'green', shape: 'dot', text: 'ready (secondary)' });
+        }
 
         // LISTEN FOR WRITE COMMANDS (BIDIRECTIONAL)
         if (config.enableWrites) {
@@ -437,7 +470,10 @@ module.exports = function (RED) {
       }
     };
 
-    start();
+    // Add small random jitter on start to prevent strict concurrency with other nodes
+    setTimeout(() => {
+      start();
+    }, Math.floor(Math.random() * 200));
 
     this.on('close', async (done) => {
       try {
@@ -454,6 +490,11 @@ module.exports = function (RED) {
       }
       catch (err) {
         this.warn(`closing error: ${err.message}`);
+      }
+      if (isPrimary) {
+        if (providerRegistry.get(this.providerId) === this.id) {
+          providerRegistry.delete(this.providerId);
+        }
       }
       done();
     });

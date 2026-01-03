@@ -12,8 +12,9 @@
         inputs: 1,
         outputs: 1,
         icon: "datahub-write.svg",
+        align: "right",
         label: function () {
-            return this.name || "DataHub - Write";
+            return this.name || this.providerId || "DataHub - Write";
         },
         paletteLabel: "DataHub - Write",
         oneditprepare: function () {
@@ -22,92 +23,89 @@
             const $listContainer = $('#variable-list-container');
             const $statusMsg = $('#fetch-status');
             const $searchInput = $('#node-input-var-search');
-            const $selectionDisplay = $('#selected-variable-display'); // Will be removed in HTML, but reference might exist in legacy code if not careful. Removed from logic below.
 
             // Raw Inputs (Hidden)
             const $inputId = $('#node-input-variableId');
             const $inputKey = $('#node-input-variableKey');
 
-            // Styles matching Read Node exactly
-            // Adjusted: ID column removed
-            const rowStyle = "display:grid; grid-template-columns: 30px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
-            // const idStyle = ...
-            const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
+            // --- Provider Lookup Logic ---
+            $('#btn-lookup-provider').on('click', function () {
+                const configNodeId = $('#node-input-connection').val();
+                const $btn = $(this);
 
-            // Removed iconStyle, using checkbox instead
+                if (!configNodeId || configNodeId === "_ADD_") {
+                    RED.notify("Please select a valid Configuration Node first.", "error");
+                    return;
+                }
+
+                $btn.addClass('disabled').html('<i class="fa fa-spinner fa-spin"></i>');
+
+                $.getJSON('uos/providers/' + configNodeId, function (data) {
+                    $btn.removeClass('disabled').html('<i class="fa fa-search"></i>');
+                    if (!data || data.length === 0) {
+                        RED.notify("No providers found.", "warning");
+                        return;
+                    }
+                    const providerList = data.map(p => {
+                        const pid = p.id || p.Id || p;
+                        return `<li class="red-ui-list-item provider-item" data-id="${pid}" style="cursor: pointer; padding: 8px; border-bottom: 1px solid #eee;">
+                            <i class="fa fa-cube"></i> <b>${pid}</b>
+                        </li>`;
+                    }).join('');
+                    const content = `<div style="padding:10px; font-size:12px; color:#666;">Select a target provider:</div>
+                                     <ul style="list-style: none; padding: 0; margin:0; max-height: 300px; overflow-y: auto; border:1px solid #ddd;">${providerList}</ul>`;
+
+                    const $dialog = $('<div id="provider-lookup-dialog"></div>').html(content).dialog({
+                        title: "Select Target Provider", width: 400, modal: true,
+                        buttons: { "Cancel": function () { $(this).dialog("close"); } }
+                    });
+                    $dialog.find('.provider-item').hover(
+                        function () { $(this).css("background-color", "#eef"); },
+                        function () { $(this).css("background-color", "white"); }
+                    ).click(function () {
+                        $("#node-input-providerId").val($(this).data('id'));
+                        $dialog.dialog("close").remove();
+                    });
+                }).fail(function () {
+                    $btn.removeClass('disabled').html('<i class="fa fa-search"></i>');
+                    RED.notify("Could not fetch providers.", "error");
+                });
+            });
+
+            // --- Variable List Logic ---
+            const rowStyle = "display:grid; grid-template-columns: 30px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px; cursor:pointer;";
+            const keyStyle = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;";
 
             let currentVariables = [];
 
-            // Render List Function
             const renderList = (vars) => {
                 $listContainer.empty();
                 if (!vars || vars.length === 0) {
-                    $listContainer.html('<div style="padding:15px; color:#777; text-align:center;">No variables found.</div>');
+                    $listContainer.html('<div style="padding:15px; color:#777; text-align:center;">No writable variables found.</div>');
                     return;
                 }
 
                 vars.forEach(v => {
                     const safeId = (v.id !== undefined) ? v.id : (v.Id !== undefined ? v.Id : 'ERR');
-                    const isSelected = String(safeId) === String($inputId.val());
+                    const isSelected = String(v.key) === String($inputKey.val()); // Match by Key primarily now
 
                     const row = $('<div>', { class: 'var-row', style: rowStyle });
-
-                    // Checkbox Container
                     const cbContainer = $('<div>', { style: 'text-align:center;' });
-                    // Use actual checkbox to match Read Node visual
-                    const cb = $('<input type="checkbox" class="var-checkbox">')
-                        .prop('checked', isSelected)
-                        .css('cursor', 'pointer');
-
+                    const cb = $('<input type="checkbox" class="var-checkbox">').prop('checked', isSelected).css('cursor', 'pointer');
                     cbContainer.append(cb);
-
-                    // ID - HIDDEN
-                    // const idCol = $('<div>', { style: 'text-align:center;' }).append($('<span>', { style: idStyle }).text(safeId));
-                    // Key
                     const keyCol = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
+                    row.append(cbContainer).append(keyCol);
 
-                    row.append(cbContainer).append(keyCol); // No ID Col
-
-                    // Click Handler (Row or Checkbox)
                     const selectRow = () => {
-                        // Uncheck all others (Single Force)
                         $('.var-checkbox').prop('checked', false);
                         cb.prop('checked', true);
-
                         $inputId.val(safeId !== 'ERR' ? safeId : '');
                         $inputKey.val(v.key);
                         $inputId.trigger('change');
                     };
 
-                    // Toggle behavior if clicking already selected? 
-                    // Usually for single select, clicking selected does nothing or keeps it selected.
-                    // If user clicks checkbox directly:
-                    cb.on('click', function (e) {
-                        e.stopPropagation(); // prevent row click double bubble
-                        if ($(this).prop('checked')) {
-                            selectRow();
-                        } else {
-                            // Allowing deserialize? imply batch mode if none selected
-                            $inputId.val('');
-                            $inputKey.val('');
-                            $inputId.trigger('change');
-                        }
-                    });
-
-                    row.on('click', function () {
-                        // If not checked, check it.
-                        if (!cb.prop('checked')) {
-                            selectRow();
-                        } else {
-                            // If already checked, uncheck?
-                            cb.prop('checked', false);
-                            $inputId.val('');
-                            $inputKey.val('');
-                            $inputId.trigger('change');
-                        }
-                    });
-
-                    // Hover effect (Gray, not Blue, matching Read Node)
+                    cb.on('click', function (e) { e.stopPropagation(); if ($(this).prop('checked')) selectRow(); else { $inputId.val(''); $inputKey.val(''); $inputId.trigger('change'); } });
+                    row.on('click', function () { if (!cb.prop('checked')) selectRow(); else { cb.prop('checked', false); $inputId.val(''); $inputKey.val(''); $inputId.trigger('change'); } });
                     row.on('mouseenter', function () { $(this).css('background', '#f7f7f7'); });
                     row.on('mouseleave', function () { $(this).css('background', 'transparent'); });
 
@@ -116,33 +114,23 @@
 
                 // Scroll to selection
                 const selectedCb = $listContainer.find('.var-checkbox:checked');
-                if (selectedCb.length) {
-                    $listContainer.scrollTop(selectedCb.closest('.var-row').offset().top - $listContainer.offset().top + $listContainer.scrollTop() - 40);
-                }
+                if (selectedCb.length) $listContainer.scrollTop(selectedCb.closest('.var-row').offset().top - $listContainer.offset().top + $listContainer.scrollTop() - 40);
             };
 
-            // Filter Logic
             $searchInput.on('keyup', function () {
                 const term = $(this).val().toLowerCase();
                 $listContainer.find('.var-row').each(function () {
-                    const text = $(this).find('div:nth-child(3)').text().toLowerCase(); // Key is 3rd column
+                    const text = $(this).find('div:nth-child(2)').text().toLowerCase();
                     $(this).toggle(text.indexOf(term) > -1);
                 });
             });
 
-            // Fetch Handler
             $fetchBtn.on('click', function () {
                 const configNodeId = $('#node-input-connection').val();
                 const providerId = $('#node-input-providerId').val();
 
-                if (!configNodeId || configNodeId === '_ADD_') {
-                    $statusMsg.text('Select Config Node!').css('color', 'red');
-                    return;
-                }
-                if (!providerId) {
-                    $statusMsg.text('Enter Provider ID!').css('color', 'red');
-                    return;
-                }
+                if (!configNodeId || configNodeId === '_ADD_') { $statusMsg.text('Select Config Node!').css('color', 'red'); return; }
+                if (!providerId) { $statusMsg.text('Enter Provider ID!').css('color', 'red'); return; }
 
                 $fetchBtn.prop('disabled', true);
                 $statusMsg.text('Fetching...').css('color', 'blue');
@@ -152,17 +140,21 @@
                     $fetchBtn.prop('disabled', false);
                     $statusMsg.text('');
 
-                    // Filter: Only writable variables
+                    // --- FILTER WRITABLE VARIABLES ---
                     const writableVars = data.filter(v => {
-                        const acc = (v.access || v.accessType || '').toUpperCase();
-                        return acc.includes('WRITE') || acc === '';
+                        // Access can be: READ_ONLY, READ_WRITE, WRITE_ONLY, NONE/undefined
+                        // We want READ_WRITE or WRITE_ONLY.
+                        // Sometimes access is undefined. If undefined, we assume maybe writable?
+                        // Or safer to show all if access is missing.
+
+                        const acc = (v.access || v.accessType || v.Access || '').toUpperCase();
+
+                        if (!acc) return true; // Show if unknown
+                        return acc.includes('WRITE');
                     });
 
-                    // Sort: ID ascending
                     currentVariables = writableVars.sort((a, b) => {
-                        const idA = (a.id !== undefined) ? parseInt(a.id) : (a.Id !== undefined ? parseInt(a.Id) : Infinity);
-                        const idB = (b.id !== undefined) ? parseInt(b.id) : (b.Id !== undefined ? parseInt(b.Id) : Infinity);
-                        return idA - idB;
+                        const idA = a.id || a.Id || 0; const idB = b.id || b.Id || 0; return idA - idB;
                     });
 
                     renderList(currentVariables);
@@ -175,43 +167,21 @@
             });
 
             // Initial state
-            const initId = $inputId.val();
             const initKey = $inputKey.val();
-
-            if (initId || initKey) {
-                // Show dummy entry for currently selected variable
-                const dummy = [{
-                    id: initId || '?',
-                    // If ID is missing, key is enough. If Key is missing, show ID.
-                    key: initKey || `ID: ${initId}`
-                }];
-                renderList(dummy);
+            if (initKey) {
+                renderList([{ id: $inputId.val(), key: initKey }]);
                 $statusMsg.text('Selected variable shown. Load again to refresh.').css('color', '#888');
             } else {
-                $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Click <b>Load Variables</b> to browse.</div>');
+                $listContainer.html('<div style="padding:20px; text-align:center; color:#999;">Click <b>Load Variables</b> to browse writable vars.</div>');
             }
 
-            // Set initial display (Removed updateSelectionDisplay call)
-            // But we might want to manually populate inputs if they are empty? No, defaults handle that.
-
             const validateVar = () => {
-                const hasId = $inputId.val();
                 const hasKey = $inputKey.val();
-                if (!hasId && !hasKey) {
-                    $('#var-validation-error').hide();
-                    $('#batch-mode-hint').show();
-                } else {
-                    $('#var-validation-error').hide();
-                    $('#batch-mode-hint').hide();
-                }
+                if (!hasKey) { $('#var-validation-error').hide(); $('#batch-mode-hint').show(); }
+                else { $('#var-validation-error').hide(); $('#batch-mode-hint').hide(); }
             };
             $inputId.on('change keyup', validateVar);
-
-            // Initial check
             validateVar();
-        },
-        oneditsave: function () {
-            // Nothing special to save
         }
     });
 </script>
@@ -229,39 +199,38 @@
 
     <div class="form-row">
         <label for="node-input-providerId"><i class="fa fa-server"></i> Provider ID</label>
-        <div style="display:flex; gap:5px;">
+        <div style="display:flex;">
             <input type="text" id="node-input-providerId" placeholder="e.g. u_os_adm" style="flex:1;">
-            <button id="btn-fetch-vars" class="red-ui-button"><i class="fa fa-refresh"></i> Load Variables</button>
+            <a id="btn-lookup-provider" class="red-ui-button" style="margin-left: 5px;" title="Search Providers"><i class="fa fa-search"></i></a>
         </div>
-        <div id="fetch-status" style="margin-top:5px; font-size:0.9em; min-height:1.2em;"></div>
     </div>
 
     <!-- Variable List Section -->
-    <div class="form-row" style="border:1px solid #ccc; padding:0; border-radius:4px; background:#fff;">
-        <div style="background:#f7f7f7; padding:8px 10px; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-weight:bold; font-size:12px;"><i class="fa fa-list-ul"></i> Select Variable</span>
-            <input type="text" id="node-input-var-search" placeholder="Filter..." style="width:120px; font-size:11px; padding:2px;">
+    <div class="form-row">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+             <label><i class="fa fa-list"></i> Variable</label>
+             <button id="btn-fetch-vars" class="red-ui-button red-ui-button-small"><i class="fa fa-refresh"></i> Load Variables</button>
         </div>
+        <div id="fetch-status" style="font-size:0.9em; min-height:1.2em; text-align:right; margin-bottom:5px;"></div>
         
-        <div style="display:grid; grid-template-columns: 30px 1fr; background:#eee; font-size:11px; font-weight:bold; padding:4px 0; border-bottom:1px solid #ccc;">
-            <div style="text-align:center;"><i class="fa fa-check-square-o"></i></div>
-            <!-- ID Removed -->
-            <div style="padding-left:10px;">Name</div>
-        </div>
-
-        <div id="variable-list-container" style="height:200px; overflow-y:auto; background:white;">
-           <!-- Variables -->
+        <div style="border:1px solid #ccc; padding:0; border-radius:4px; background:#fff;">
+            <div style="background:#f7f7f7; padding:4px 10px; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; font-weight:bold;">Select Writable Variable</span>
+                <input type="text" id="node-input-var-search" placeholder="Filter..." style="width:100px; font-size:11px; padding:2px;">
+            </div>
+            
+            <div id="variable-list-container" style="height:200px; overflow-y:auto; background:white;">
+               <!-- Variables -->
+            </div>
+            <div style="background:#f7f7f7; padding:4px 10px; border-top:1px solid #ddd; color:#888; font-size:10px; text-align:center;">
+                Only variables with Write access are shown.
+            </div>
         </div>
     </div>
     
-    <!-- Hidden Inputs (Required by Node-RED to save state) -->
     <input type="hidden" id="node-input-variableId">
     <input type="hidden" id="node-input-variableKey">
 
-    <div id="var-validation-error" class="form-tips" style="display:none; color:#c00; margin-top:10px;">
-        <i class="fa fa-warning"></i> <b>Please select a variable (or rely on Batch Mode via JSON).</b>
-    </div>
-    
     <div id="batch-mode-hint" class="form-tips" style="display:none; color:#666; margin-top:10px;">
         <i class="fa fa-info-circle"></i> <b>No variable selected.</b> Node enters <b>Batch Mode</b>.<br>
         Send a JSON object (<code>{"key": value}</code>) to write variables dynamically.
@@ -273,83 +242,11 @@
 </script>
 
 <script type="text/html" data-help-name="datahub-write">
-    <p><b>DataHub - Write</b> sends write commands to external Data Hub providers to change variable values.</p>
-    
-    <h3>Purpose</h3>
-    <p>Control variables in <b>other providers</b> (not your own). Use this to:</p>
-    <ul>
-        <li>Toggle flags (e.g., <code>enable_mode = true</code>)</li>
-        <li>Update setpoints (e.g., <code>target_temp = 25.5</code>)</li>
-        <li>Control external devices via Data Hub</li>
-    </ul>
-
+    <p><b>DataHub - Write</b> sends write commands to external Data Hub providers.</p>
     <h3>Configuration</h3>
-    
-    <h4>Provider ID</h4>
-    <p>The target provider to write to (e.g., <code>u_os_adm</code>, <code>u_os_sbm</code>).</p>
-    <p><b>Find it:</b> u-OS Web UI → Data Hub → Providers</p>
-
-    <h4>Select Variable (Single Mode)</h4>
-    <p>Click <b>Load Variables</b> to browse. Select a variable to target it specifically.</p>
-    <p>If selected, <code>msg.payload</code> is written as the value.</p>
-    
-    <h4>Batch Mode (Dynamic)</h4>
-    <p>If <b>NO variable is selected</b>, you can write multiple variables by sending a JSON object:</p>
-    <pre><code>msg.payload = {
-  "machine.status": true,
-  "machine.speed": 100
-};</code></pre>
-    <p>The node resolves keys to IDs automatically.</p>
-
-    <h3>Input Format</h3>
-    <p>Send the new value as <code>msg.payload</code>:</p>
-
-    <h4>Example: Single Write</h4>
-    <pre><code>msg.payload = false;</code></pre>
-
-    <h4>Example: Batch Write (JSON)</h4>
-    <pre><code>msg.payload = {
-  "channel_0.do": true,
-  "channel_1.do": false
-};</code></pre>
-
-    <h3>Output</h3>
-    <p>Outputs a confirmation message when the write command is sent:</p>
-    <pre><code>{
-  "success": true,
-  "providerId": "u_os_adm",
-  "count": 1,
-  "firstValue": false
-}</code></pre>
-
-    <h3>Example Flow</h3>
-    <pre><code>[Inject: false] → [DataHub - Write] → [Debug]
-                   (Provider: u_os_adm, Variable ID: 5)</code></pre>
-
-    <h3>Important Notes</h3>
-    <ul>
-        <li>⚠️ <b>Requires write permissions:</b> Your OAuth client must have <code>hub.variables.readwrite</code> scope</li>
-        <li>⚠️ <b>Provider must accept writes:</b> Some providers are read-only</li>
-        <li>⚠️ <b>Variable must exist:</b> The variable ID must be valid in the target provider</li>
-    </ul>
-
-    <h3>Troubleshooting</h3>
-    
-    <h4>No Response / Error</h4>
-    <ul>
-        <li>Check Provider ID is correct (u-OS Web UI → Data Hub → Providers)</li>
-        <li>Verify Variable ID exists (Providers → Variables tab)</li>
-        <li>Ensure OAuth client has <code>hub.variables.readwrite</code> scope</li>
-    </ul>
-
-    <h4>Permission Denied</h4>
-    <ul>
-        <li>Check OAuth client scopes in u-OS (u-OS Control Center → Identity & access → Clients)</li>
-        <li>Verify provider allows writes (some system providers are read-only)</li>
-    </ul>
-
-    <div style="margin-top:15px; padding-top:10px; border-top:1px solid #ddd; font-size:0.85em; color:#666;">
-        <p><b>Developed by <a href="https://iotueli.ch" target="_blank">IoTUeli</a></b></p>
-        <p>Not an official Weidmüller product. Community contribution.</p>
-    </div>
+    <ol>
+        <li><b>Provider ID:</b> Target provider (e.g. <code>u_os_adm</code>). Use the search button to find it.</li>
+        <li><b>Variable:</b> Select a target variable. <b>Only writable variables are shown.</b></li>
+    </ol>
+    <p>If no variable is selected, the node works in <b>Batch Mode</b> (expects JSON object payload).</p>
 </script>
