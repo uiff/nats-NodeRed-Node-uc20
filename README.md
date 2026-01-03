@@ -56,7 +56,7 @@ Restart Node-RED. The nodes will appear in the **"Weidmüller DataHub"** categor
 Import this flow to test reading and writing immediately:
 
 ```json
-[{"id":"cdad2fa96dc6eeec","type":"datahub-input","z":"c221537c994b056a","name":"Read Zipcode","connection":"a0ba0e15c8dad779","providerId":"u_os_adm","manualVariables":"digital_nameplate.address_information.zipcode:2","triggerMode":"poll","pollingInterval":"1000","x":190,"y":100,"wires":[["315d179d66bf9b93"]]},{"id":"315d179d66bf9b93","type":"debug","z":"c221537c994b056a","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","statusVal":"","statusType":"auto","x":440,"y":100,"wires":[]},{"id":"a0ba0e15c8dad779","type":"uos-config","host":"127.0.0.1","port":49360,"clientName":"hub"}]
+[{"id":"cdad2fa96dc6eeec","type":"datahub-input","z":"c221537c994b056a","name":"Read Zipcode","connection":"a0ba0e15c8dad779","providerId":"u_os_adm","manualVariables":"digital_nameplate.address_information.zipcode:2","triggerMode":"event","pollingInterval":"1000","x":190,"y":100,"wires":[["315d179d66bf9b93"]]},{"id":"315d179d66bf9b93","type":"debug","z":"c221537c994b056a","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","statusVal":"","statusType":"auto","x":440,"y":100,"wires":[]},{"id":"a0ba0e15c8dad779","type":"uos-config","clientName":"nodered-client"}]
 ```
 
 ---
@@ -92,7 +92,13 @@ Publishes your own data to the Data Hub.
 ## Troubleshooting
 
 - **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.
-- **Connection Failed?** Check Host/IP and ensure Client ID/Secret are correct.
+- **Node Status is Yellow?**
+  - `cooldown (10s)`: The node is waiting to protect the device. This is normal after an error.
+  - `provider offline`: The connection to NATS is OK, but the target (e.g. `u_os_sbm`) is not responding (503).
+  - `auth failed`: Check your OAuth Client Secret and Scopes.
+- **Node Status is Red?**
+  - `illegal ID`: You used a reserved name like `u_os_sbm`. Rename your Client/Provider.
+  - `write error`: A command failed. Check Scopes (`hub.variables.readwrite`) or Fingerprint.
 - **Variable ID "undefined" or "ERR"?** 
   - The ID column is hidden by default to avoid confusion. The node handles ID resolution automatically.
   - If a variable fails, check if the Key (name) is correct on the Data Hub.

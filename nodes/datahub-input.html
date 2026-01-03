@@ -30,11 +30,16 @@
 
       // Convert stored ms to unit for display
       let currentMs = node.pollingInterval || 0;
-      let uiVal = currentMs;
       let uiUnit = node.pollingUnit || 'ms';
+      let uiVal = currentMs;
 
-      // Heuristic helper if unit was missing (legacy support)
-      if (!node.pollingUnit && currentMs > 0) {
+      // If unit is set, reverse convert for display
+      if (uiUnit === 'min') {
+        uiVal = currentMs / 60000;
+      } else if (uiUnit === 's') {
+        uiVal = currentMs / 1000;
+      } else if (!node.pollingUnit && currentMs > 0) {
+        // Heuristic fallback (Legacy): Guess unit if none was saved
         if (currentMs >= 60000 && currentMs % 60000 === 0) { uiVal = currentMs / 60000; uiUnit = 'min'; }
         else if (currentMs >= 1000 && currentMs % 1000 === 0) { uiVal = currentMs / 1000; uiUnit = 's'; }
       }
