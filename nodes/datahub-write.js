@@ -170,7 +170,7 @@ module.exports = function (RED) {
                         node.resolvedId = this.variableId;
                         // Log as debug implies we handle it gracefully => No User Warn
                         node.debug(`ID Resolution failed for '${this.variableKey}' (${err.message}). Using configured ID: ${this.variableId}`);
-                        node.status({ fill: 'green', shape: 'ring', text: 'ready (fallback)' });
+                        node.status({ fill: 'yellow', shape: 'dot', text: 'fallback (key missing)' });
                     } else {
                         node.warn(`ID Resolution failed for '${this.variableKey}': ${err.message}`);
                         node.status({ fill: 'red', shape: 'dot', text: 'resolution failed' });

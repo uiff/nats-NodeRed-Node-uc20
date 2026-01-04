@@ -176,37 +176,51 @@ module.exports = function (RED) {
       if (this.nc) {
         return this.nc;
       }
-      // Ensure we have a valid token initially
-      await this.getToken();
-
-      // Use jwtAuthenticator to allow dynamic token refresh on reconnect
-      try {
-        this.nc = await connect({
-          servers: `nats://${this.host}:${this.port}`,
-          // Authenticator must be SYNCHRONOUS. We rely on background refresh to keep this.tokenInfo current.
-          // Token function must be SYNCHRONOUS if we rely on background refresh.
-          token: () => {
-            return this.tokenInfo ? this.tokenInfo.token : '';
-          },
-          name: this.clientName,
-          inboxPrefix: `_INBOX.${this.clientName}`,
-          maxReconnectAttempts: -1, // Infinite reconnects
-          reconnectTimeWait: 2000,
-        });
-        this.log(`NATS connecting with Name: '${this.clientName}'`);
-
-        // Reset Failure timestamp on success
-        this.authFailureTimestamp = 0;
-
-      } catch (e) {
-        if (e.message && (e.message.includes('Authorization') || e.message.includes('Permissions') || e.message.includes('Authentication'))) {
-          this.warn(`NATS Authorization failed. Invalidating token cache. Circuit Breaker active for 10s.`);
-          this.tokenInfo = null; // Force fresh token next time
-          this.authFailureTimestamp = Date.now(); // Start Cooldown
-        }
-        this.error(`NATS connect failed: ${e.message}`);
-        throw e;
+      // Deduplication: Return existing promise if we are already connecting
+      if (this.connectionPromise) {
+        // this.log('Joining pending connection request...');
+        return this.connectionPromise;
       }
+
+      this.connectionPromise = (async () => {
+        try {
+          // Ensure we have a valid token initially
+          await this.getToken();
+
+          this.nc = await connect({
+            servers: `nats://${this.host}:${this.port}`,
+            // Authenticator must be SYNCHRONOUS. We rely on background refresh to keep this.tokenInfo current.
+            // Token function must be SYNCHRONOUS if we rely on background refresh.
+            token: () => {
+              return this.tokenInfo ? this.tokenInfo.token : '';
+            },
+            // REVERT: Use Configured Client Name for Connection.
+            // Using UUID caused "Authorization Violation" for some users.
+            name: this.clientName,
+            inboxPrefix: `_INBOX.${this.clientName}`,
+            maxReconnectAttempts: -1, // Infinite reconnects
+            reconnectTimeWait: 2000,
+          });
+
+          this.log(`NATS connecting as Name: '${this.clientName}' (Dedup Active)`);
+
+          // Reset Failure timestamp on success
+          this.authFailureTimestamp = 0;
+          return this.nc;
+
+        } catch (e) {
+          if (e.message && (e.message.includes('Authorization') || e.message.includes('Permissions') || e.message.includes('Authentication'))) {
+            this.warn(`NATS Authorization failed. Invalidating token cache. Circuit Breaker active for 10s.`);
+            this.tokenInfo = null; // Force fresh token next time
+            this.authFailureTimestamp = Date.now(); // Start Cooldown
+          }
+          this.error(`NATS connect failed: ${e.message}`);
+          throw e;
+        } finally {
+          this.connectionPromise = null;
+        }
+      })();
+      return this.connectionPromise;
       this.nc.closed().then(() => {
         this.nc = null;
         this.emit('disconnected');

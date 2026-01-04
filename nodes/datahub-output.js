@@ -77,11 +77,10 @@ module.exports = function (RED) {
       return;
     }
     // Retrieve configuration node
-    // Default to Connection's Client Name (Friendly Name) because Client ID is often a UUID
-    // that doesn't match the desired Provider ID. User typically expects 'nodered' not '0069...'
+    // Auto Mode: Prefer Client Name ("nodered") to match Connection Name.
+    // This ensures consistency with DataHub UI expectations.
     let defaultId = connection.clientName;
     if (!defaultId) {
-      // Fallback to ID if Name is missing (should not happen as Name is mandatory)
       defaultId = connection.clientId || 'nodered';
     }
 
@@ -134,6 +133,7 @@ module.exports = function (RED) {
     };
 
     // Check Singleton Status
+    this.fatalError = false;
     let isPrimary = false;
     const existingNodeId = providerRegistry.get(this.providerId);
     if (existingNodeId && existingNodeId !== this.id) {
@@ -147,7 +147,8 @@ module.exports = function (RED) {
     // --- SEND DEFINITION HELPER ---
     const sendDefinitionUpdate = async (modPayloads, modSubjects) => {
       if (!nc) return;
-      if (!isPrimary) return; // Only Primary sends definitions
+      if (!isPrimary) return;
+      if (this.fatalError) return; // permanent lockout
 
       try {
         const { payload, fingerprint: fp } = modPayloads.buildProviderDefinitionEvent(definitions);
@@ -160,7 +161,17 @@ module.exports = function (RED) {
         await nc.flush();
         console.log(`[DataHub Output] Definition published. FP: ${fp}`);
       } catch (err) {
-        this.warn(`Definition update error: ${err.message}`);
+        let msg = err.message || '';
+        // Check for fatal Auth/Permission errors
+        if (msg.includes('Authorization') || msg.includes('permissions') || msg.includes('10003') || msg.includes('Access Denied')) {
+          this.fatalError = true;
+          this.error(`FATAL AUTH ERROR: ${msg}. Stopping provider to protect connection.`);
+          this.status({ fill: 'red', shape: 'dot', text: 'auth blocked (permanent)' });
+          // Clear heartbeats
+          if (outputHeartbeat) clearInterval(outputHeartbeat);
+        } else {
+          this.warn(`Definition update error: ${err.message}`);
+        }
       }
     };
 
@@ -186,6 +197,7 @@ module.exports = function (RED) {
         // console.log('[DataHub Output] Heartbeat skipped: NATS closed.');
         return;
       }
+      if (this.fatalError) return; // permanent lockout
       if (!loadedPayloads || !loadedSubjects) return;
 
       // If we have no definitions yet, nothing to send
