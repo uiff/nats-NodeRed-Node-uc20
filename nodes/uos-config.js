@@ -196,8 +196,12 @@ module.exports = function (RED) {
             },
             // REVERT: Use Configured Client Name for Connection.
             // Using UUID caused "Authorization Violation" for some users.
-            name: this.clientName,
-            // inboxPrefix: `_INBOX.${this.clientName}`, // REMOVED: Caused 503/Offline errors (Replies blocked)
+            // Sanitize clientName for Inbox usage (Strict NATS subjects)
+            const safeClientName = this.clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+            // inboxPrefix: `_INBOX.${safeClientName}`, // RESTORED: Spec requires strictly this format (ACLs enforce it). 
+            // Using safeClientName avoids invalid subject errors.
+            inboxPrefix: `_INBOX.${safeClientName}`,
             maxReconnectAttempts: -1, // Infinite reconnects
             reconnectTimeWait: 2000,
           });
