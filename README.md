@@ -77,7 +77,7 @@ Reads values from existing providers (like `u_os_adm`).
 ### DataHub - Write
 Changes values in other providers.
 -   **Single Mode:** Select a variable from the list. Send `msg.payload` = value.
--   **Batch Mode:** Select NO variable (clear selection). Send `msg.payload` as a JSON object: `{"var_key": value, "var2": value}` (uses Configured Provider).
+-   **Batch Mode:** Select NO variable (clear selection). Send `msg.payload` as a FLAT JSON object: `{"var_key": value, "machine.status": value}` (uses Configured Provider). **Nested objects are NOT supported** (keys must use dot-notation).
 -   **Dynamic Mode:** Send a full target object to write anywhere:
     ```json
     {

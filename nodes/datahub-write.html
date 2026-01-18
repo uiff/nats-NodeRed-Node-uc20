@@ -250,7 +250,7 @@
     </ol>
     <p>If no variable is selected, the node works in <b>Batch Mode</b> or <b>Dynamic Mode</b>.</p>
     <ul>
-        <li><b>Batch:</b> Send a JSON object to update multiple keys for the configured Provider: <code>{"key": value, "key2": value}</code></li>
+        <li><b>Batch:</b> Send a FLAT JSON object to update multiple keys for the configured Provider: <code>{"key": value, "machine.status": value}</code>. <br><b>Note:</b> Nested objects are NOT flattened automatically. Use dot-notation for keys!</li>
         <li><b>Dynamic:</b> Send a specific object to target ANY Provider/Key:
             <code>
             {
