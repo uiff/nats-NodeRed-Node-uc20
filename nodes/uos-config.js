@@ -197,7 +197,7 @@ module.exports = function (RED) {
             // REVERT: Use Configured Client Name for Connection.
             // Using UUID caused "Authorization Violation" for some users.
             name: this.clientName,
-            inboxPrefix: `_INBOX.${this.clientName}`,
+            // inboxPrefix: `_INBOX.${this.clientName}`, // REMOVED: Caused Auth Violation if permissions missing
             maxReconnectAttempts: -1, // Infinite reconnects
             reconnectTimeWait: 2000,
           });
