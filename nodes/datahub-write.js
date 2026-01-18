@@ -170,7 +170,8 @@ module.exports = function (RED) {
                         node.resolvedId = this.variableId;
                         // Log as debug implies we handle it gracefully => No User Warn
                         node.debug(`ID Resolution failed for '${this.variableKey}' (${err.message}). Using configured ID: ${this.variableId}`);
-                        node.status({ fill: 'yellow', shape: 'dot', text: 'fallback (key missing)' });
+                        // User Request v1.3.48: Show Green 'ready' even if ID resolution failed (Dynamic Mode)
+                        node.status({ fill: 'green', shape: 'dot', text: 'ready' });
                     } else {
                         node.warn(`ID Resolution failed for '${this.variableKey}': ${err.message}`);
                         node.status({ fill: 'red', shape: 'dot', text: 'resolution failed' });
@@ -228,30 +229,40 @@ module.exports = function (RED) {
                         // Array: [{id:1, value:val}, {key:'k', value:val}]
                         items = rawPayload;
                     } else {
-                        // Object: { "key": val, "id:1": val }
-                        items = Object.entries(rawPayload).map(([k, v]) => {
-                            // Detect if key is actually an ID (e.g. "5" or "id:5")? 
-                            // Easier: treat all keys as Keys, unless user passes explicit Array.
-                            const asInt = parseInt(k, 10);
-                            if (!isNaN(asInt) && String(asInt) === k) {
-                                return { id: asInt, value: v };
-                            }
-                            return { key: k, value: v };
-                        });
+                        // Check for Single Dynamic Write Object
+                        // Format: { provider: "p", key: "k", value: "v" }
+                        if (rawPayload.provider || rawPayload.key || rawPayload.variableKey || rawPayload.variableId) {
+                            items = [rawPayload];
+                        } else {
+                            // Object: { "key": val, "id:1": val }
+                            items = Object.entries(rawPayload).map(([k, v]) => {
+                                // Detect if key is actually an ID (e.g. "5" or "id:5")? 
+                                // Easier: treat all keys as Keys, unless user passes explicit Array.
+                                const asInt = parseInt(k, 10);
+                                if (!isNaN(asInt) && String(asInt) === k) {
+                                    return { id: asInt, value: v };
+                                }
+                                return { key: k, value: v };
+                            });
+                        }
                     }
 
                     // Process Items
                     for (const item of items) {
-                        let targetId = item.id;
+                        let targetId = item.id || item.variableId;
                         let targetType = item.dataType; // Optional explicit type
 
                         if (targetId === undefined) {
-                            if (item.key) {
+                            const effectiveKey = item.key || item.variableKey;
+                            if (effectiveKey) {
                                 // Resolve Key
                                 try {
+                                    // Use Dynamic Provider if present, otherwise configured Provider
+                                    const effectiveProvider = item.provider || item.providerId || node.providerId;
+
                                     // Use Centralized Cache in Config Node
                                     if (typeof configNode.resolveVariableId === 'function') {
-                                        const resolved = await configNode.resolveVariableId(node.providerId, item.key);
+                                        const resolved = await configNode.resolveVariableId(effectiveProvider, effectiveKey);
                                         targetId = resolved.id;
                                         if (!targetType) targetType = resolved.dataType;
                                         if (resolved.fingerprint) currentFingerprint = resolved.fingerprint;
@@ -259,7 +270,7 @@ module.exports = function (RED) {
                                         throw new Error("Config Node too old");
                                     }
                                 } catch (e) {
-                                    node.warn(`Skipping key '${item.key}': ${e.message}`);
+                                    node.warn(`Skipping key '${effectiveKey}': ${e.message}`);
                                     continue;
                                 }
                             } else {

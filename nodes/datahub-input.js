@@ -168,100 +168,125 @@ module.exports = function (RED) {
           return; // Stop here, do not start Interval or Subscription
         }
 
-        performSnapshot = async () => {
-          // Debugging connection state
+        performSnapshot = async (overrideItems) => {
           if (!nc || nc.isClosed()) {
             this.warn('Snapshot skipped: Connection is closed or not ready.');
             return;
           }
 
-          try {
-            // Resolve requested variable names to IDs
-            let targetIds = [];
-            let isWildcard = (this.variables.length === 0);
+          // Group items by Provider
+          // Default Provider: this.providerId
+          const requests = new Map(); // ProviderId -> Set<VariableId>
 
-            if (!isWildcard) {
-              // Reverse lookup: Find Def by Key
-              const requestedKeys = new Set(this.variables);
+          if (overrideItems) {
+            // Dynamic Mode: Resolve each item
+            for (const item of overrideItems) {
+              let pId = (typeof item === 'object' && item.provider) ? item.provider : this.providerId;
+              let key = (typeof item === 'object') ? item.key : item; // String or Object.key
 
-              for (const def of defMap.values()) {
-                if (requestedKeys.has(def.key)) {
-                  targetIds.push(Number(def.id));
-                }
+              if (!key) continue;
+
+              try {
+                // Use Config Node Resolution (Cache)
+                // This handles fetching definitions for ANY provider on demand
+                const resolved = await connection.resolveVariableId(pId, key);
+
+                if (!requests.has(pId)) requests.set(pId, new Set());
+                requests.get(pId).add(resolved.id);
+              } catch (e) {
+                this.warn(`Dynamic Read: Skipping '${key}' on '${pId}': ${e.message}`);
               }
-
-              // CRITICAL FIX: If user requested specific variables but we found NONE, 
-              // we MUST NOT send an empty list, because that would interpret as "Read All".
-              if (targetIds.length === 0) {
-                // Already handled by Gate above mostly, but good for safety
-                this.warn(`Snapshot Aborted: None of the ${this.variables.length} requested variables could be resolved to IDs.`);
+            }
+          } else {
+            // Static Mode: Use local defMap for configured provider
+            const targetIds = new Set();
+            const isWildcard = (this.variables.length === 0);
+            if (!isWildcard) {
+              const requestedKeys = new Set(this.variables);
+              for (const def of defMap.values()) {
+                if (requestedKeys.has(def.key)) targetIds.add(def.id);
+              }
+              if (targetIds.size === 0) {
+                this.warn(`Snapshot Aborted: None of the configured variables could be resolved.`);
                 return;
               }
             }
+            requests.set(this.providerId, targetIds); // Empty Set = Wildcard
+          }
 
-            // If Wildcard (empty targetIds and isWildcard=true) -> Request ALL.
-            // If Specific (targetIds has items) -> Request specific.
-            // Use serialRequest via Config Node to prevent concurrency issues on the connection
-            // Simple Snapshot Logic using Config Node Semaphore
-            // The Config Node now handles concurrency (max 3 parallel), preventing 503s naturally.
-            // We use a simple retry wrapper just in case.
-            let lastError;
-            for (let attempt = 1; attempt <= 3; attempt++) {
-              try {
-                let snapshotMsg;
-                // If config node has serialRequest (Semaphore), use it.
-                if (typeof connection.serialRequest === 'function') {
-                  snapshotMsg = await connection.serialRequest(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 10000 });
-                } else {
-                  // Fallback to direct request (unsafe)
-                  snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 10000 });
-                }
+          if (requests.size === 0) {
+            this.warn("Snapshot Aborted: No valid variables resolved.");
+            return;
+          }
 
-                const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
-                const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
-                const states = payloads.decodeVariableList(snapshotObj.variables());
+          const allResults = [];
+          const errors = [];
 
-                const filteredSnapshot = processStates(states);
-                if (filteredSnapshot.length > 0) {
-                  this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
-                  this.status({ fill: 'green', shape: 'dot', text: 'active' });
-                } else {
-                  // Handle empty/partial...
-                  this.status({ fill: 'green', shape: 'ring', text: 'active (empty)' });
-                }
-                return true; // Success
+          // Execute Requests (Serial or Parallel?) 
+          // Using Serial to be safe with connection bandwidth
+          for (const [pId, varIds] of requests) {
+            try {
+              let targetIdsArr = Array.from(varIds);
 
-              } catch (err) {
-                lastError = err;
-                // If semaphore is full or timeout, wait a bit
-                await new Promise(r => setTimeout(r, 1000 * attempt));
-              }
-            }
-            if (lastError) {
-              const msg = lastError.message || '';
-              if (msg.includes('503') || msg.includes('no responders')) {
-                this.debug(`Snapshot skipped (Provider offline/503): ${msg}`);
-                this.status({ fill: 'yellow', shape: 'dot', text: 'provider offline' });
-              } else if (msg.includes('Cooldown')) {
-                this.debug(`Snapshot skipped (Cooldown): ${msg}`);
-                this.status({ fill: 'yellow', shape: 'ring', text: 'cooldown (10s)' });
-              } else if (msg.includes('Authorization') || msg.includes('Permission')) {
-                this.debug(`Snapshot skipped (Auth): ${msg}`);
-                this.status({ fill: 'yellow', shape: 'ring', text: 'auth failed' });
+              // Request
+              let snapshotMsg;
+              if (typeof connection.serialRequest === 'function') {
+                snapshotMsg = await connection.serialRequest(subjects.readVariablesQuery(pId), payloads.buildReadVariablesQuery(targetIdsArr), { timeout: 10000 });
               } else {
-                this.warn(`Snapshot failed: ${msg}`);
-                this.status({ fill: 'red', shape: 'ring', text: 'snapshot error' });
+                snapshotMsg = await nc.request(subjects.readVariablesQuery(pId), payloads.buildReadVariablesQuery(targetIdsArr), { timeout: 10000 });
               }
+
+              const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
+              const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
+              const states = payloads.decodeVariableList(snapshotObj.variables());
+
+              // Add Provider Info to Result?
+              // ProcessStates adds keys, but we might want to know which provider it came from if mixed?
+              // The current `processStates` maps IDs back to Keys using `defMap`. 
+              // ISSUE: `defMap` only has local provider defs.
+              // If we read from foreign provider, `processStates` will return IDs or "Unknown".
+              // We need `resolveVariableId` to also START caching the reverse lookup or we assume result has IDs?
+              // Wait, `decodeVariableList` returns {id, value}.
+              // `processStates` tries to find Key.
+
+              // QUICK FIX for Dynamic Multi-Provider:
+              // If pId !== this.providerId, we don't have local defMap.
+              // But `resolveVariableId` (in config) caches definitions.
+              // We can ask config to resolve ID back to Key? Or just return ID?
+              // Better: We know the Keys we asked for.
+
+              // Let's modify processStates to accept a custom Map?
+              // Or simple: Just return the raw objects with IDs if we can't map them?
+              // Actually, for Dynamic Read, users might accept {id, value} or we try to enrich.
+
+              const enriched = states.map(s => {
+                // Try local defMap
+                if (pId === this.providerId && defMap.has(s.id)) {
+                  return { ...s, key: defMap.get(s.id).key, provider: pId };
+                }
+                // Try Config Node Cache (it has all fetched defs)
+                const cachedDef = connection.getProviderVariable(pId, s.id);
+                if (cachedDef) {
+                  return { ...s, key: cachedDef.key, provider: pId };
+                }
+                return { ...s, key: `id:${s.id}`, provider: pId };
+              });
+
+              allResults.push(...enriched);
+
+            } catch (err) {
+              errors.push(`${pId}: ${err.message}`);
             }
-          } catch (e) {
-            const msg = e.message || '';
-            if (msg.includes('503') || msg.includes('no responders')) {
-              this.debug(`Snapshot skipped (Provider offline/503): ${msg}`);
-            } else if (msg.includes('Cooldown')) {
-              // Ignore cooldown errors in outer catch
-            } else {
-              this.warn(`Snapshot failed: ${msg}`);
-            }
+          }
+
+          if (allResults.length > 0) {
+            this.send({ payload: { type: 'snapshot', variables: allResults } });
+            this.status({ fill: 'green', shape: 'dot', text: 'active' });
+          } else if (errors.length > 0) {
+            this.warn(`Snapshot errors: ${errors.join('; ')}`);
+            this.status({ fill: 'red', shape: 'ring', text: 'error' });
+          } else {
+            this.status({ fill: 'green', shape: 'ring', text: 'empty' });
           }
         };
 
@@ -334,7 +359,14 @@ module.exports = function (RED) {
     };
 
     this.on('input', (msg, send, done) => {
-      performSnapshot()
+      let overrideItems = null;
+      if (Array.isArray(msg.payload) && msg.payload.length > 0) {
+        // Pass the raw array items (String or Object {provider, key})
+        // performSnapshot will handle filtering
+        overrideItems = msg.payload;
+      }
+
+      performSnapshot(overrideItems)
         .then(() => done())
         .catch((err) => done(err));
     });

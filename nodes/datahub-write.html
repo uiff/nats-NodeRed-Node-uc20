@@ -248,5 +248,24 @@
         <li><b>Provider ID:</b> Target provider (e.g. <code>u_os_adm</code>). Use the search button to find it.</li>
         <li><b>Variable:</b> Select a target variable. <b>Only writable variables are shown.</b></li>
     </ol>
-    <p>If no variable is selected, the node works in <b>Batch Mode</b> (expects JSON object payload).</p>
-</script>
+    <p>If no variable is selected, the node works in <b>Batch Mode</b> or <b>Dynamic Mode</b>.</p>
+    <ul>
+        <li><b>Batch:</b> Send a JSON object to update multiple keys for the configured Provider: <code>{"key": value, "key2": value}</code></li>
+        <li><b>Dynamic:</b> Send a specific object to target ANY Provider/Key:
+            <code>
+            {
+                "provider": "u_os_sbm",
+                "key": "machine.outputs.DO01",
+                "value": true
+            }
+            </code>
+        </li>
+        <li><b>Mixed Array:</b> Send an array of dynamic objects to write to multiple providers at once:
+            <code>
+            [
+              { "provider": "u_os_sbm", "key": "doo1", "value": true },
+              { "provider": "other_provider", "key": "var2", "value": 123 }
+            ]
+            </code>
+        </li>
+    </ul>

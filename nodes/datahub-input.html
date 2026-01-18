@@ -348,4 +348,8 @@
         <li><b>Provider ID:</b> ID of the data source (e.g., <code>u_os_adm</code>). Use the search button to find available providers.</li>
         <li><b>Variables:</b> Click "Load Variables" to select specific data points. Leave empty to read everything.</li>
     </ol>
+    <p>
+        <b>Dynamic Read:</b> Send <code>msg.payload</code> as an Array of variable keys (e.g. <code>["var1", "var2"]</code>) 
+        to read specific variables on demand. This overrides the node's configuration for that single request.
+    </p>
 </script>

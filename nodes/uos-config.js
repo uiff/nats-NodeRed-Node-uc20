@@ -559,8 +559,26 @@ module.exports = function (RED) {
       }
     };
 
-    this.on('close', (done) => {
-      this.release().finally(done);
+    this.on('close', async (done) => {
+      // Force Close Connection on Full Deploy (ignore reference count)
+      if (this.refreshTimer) {
+        clearTimeout(this.refreshTimer);
+        this.refreshTimer = null;
+      }
+
+      if (this.nc) {
+        const nc = this.nc;
+        this.nc = null;
+        this.users = 0;
+        try {
+          // Drain ensures all pending messages are sent before closing
+          await nc.drain();
+          // this.log('NATS Connection flushed and closed.');
+        } catch (err) {
+          this.warn(`Error closing NATS connection: ${err.message}`);
+        }
+      }
+      done();
     });
   }
 

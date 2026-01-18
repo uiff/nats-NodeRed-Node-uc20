@@ -68,12 +68,28 @@ Reads values from existing providers (like `u_os_adm`).
 - **Provider ID:** Name of the source provider.
 - **Variables:** Use **Load Variables** to browse and select variables.
 - **Trigger:** "Event" (instant update) or "Poll" (interval).
+- **Dynamic Read:** Send `msg.payload` as an Array of keys (e.g. `["machine.status", "temp"]`) to trigger a specific snapshot, ignoring the node configuration.
 
 ### DataHub - Write
 Changes values in other providers.
-- **Single Mode:** Select a variable from the list. Send `msg.payload` = value.
-- **Batch Mode:** Select NO variable (clear selection). Send `msg.payload` as a JSON object: `{"var_key": value, "var2": value}`.
-- **Strict Mode:** Automatically handles Fingerprints for strict providers (e.g. `u_os_sbm`).
+-   **Single Mode:** Select a variable from the list. Send `msg.payload` = value.
+-   **Batch Mode:** Select NO variable (clear selection). Send `msg.payload` as a JSON object: `{"var_key": value, "var2": value}` (uses Configured Provider).
+-   **Dynamic Mode:** Send a full target object to write anywhere:
+    ```json
+    {
+      "provider": "target_provider_id",
+      "key": "variable_key",
+      "value": 123
+    }
+    ```json
+    {
+      "provider": "target_provider_id",
+      "key": "variable_key",
+      "value": 123
+    }
+    ```
+    Or send an **Array** of these objects to write to multiple providers in one go.
+-   **Strict Mode:** Automatically handles Fingerprints for strict providers (e.g. `u_os_sbm`).
 
 ### DataHub - Provider
 Publishes your own data to the Data Hub.
@@ -92,10 +108,11 @@ Publishes your own data to the Data Hub.
 ## Troubleshooting
 
 - **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.
+- **Node Status is Green (Ring)?**
+  - `waiting for provider`: The node is connected to NATS (OK), but the target Provider (e.g. `u_os_sbm`) is currently offline. It will resume automatically.
 - **Node Status is Yellow?**
-  - `cooldown (10s)`: The node is waiting to protect the device. This is normal after an error.
-  - `provider offline`: The connection to NATS is OK, but the target (e.g. `u_os_sbm`) is not responding (503).
-  - `auth failed`: Check your OAuth Client Secret and Scopes.
+  - `cooldown (10s)`: The node is pausing after an error to protect the network.
+  - `auth failed`: OAuth credentials generated an error. Check Client Secret.
 - **Node Status is Red?**
   - `illegal ID`: You used a reserved name like `u_os_sbm`. Rename your Client/Provider.
   - `write error`: A command failed. Check Scopes (`hub.variables.readwrite`) or Fingerprint.
