@@ -187,6 +187,9 @@ module.exports = function (RED) {
           // Ensure we have a valid token initially
           await this.getToken();
 
+          // Sanitize clientName for Inbox usage (Strict NATS subjects)
+          const safeClientName = this.clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
+
           this.nc = await connect({
             servers: `nats://${this.host}:${this.port}`,
             // Authenticator must be SYNCHRONOUS. We rely on background refresh to keep this.tokenInfo current.
@@ -196,8 +199,7 @@ module.exports = function (RED) {
             },
             // REVERT: Use Configured Client Name for Connection.
             // Using UUID caused "Authorization Violation" for some users.
-            // Sanitize clientName for Inbox usage (Strict NATS subjects)
-            const safeClientName = this.clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
+            name: this.clientName,
 
             // inboxPrefix: `_INBOX.${safeClientName}`, // RESTORED: Spec requires strictly this format (ACLs enforce it). 
             // Using safeClientName avoids invalid subject errors.
