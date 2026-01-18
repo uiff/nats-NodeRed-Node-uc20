@@ -283,8 +283,17 @@ module.exports = function (RED) {
             this.send({ payload: { type: 'snapshot', variables: allResults } });
             this.status({ fill: 'green', shape: 'dot', text: 'active' });
           } else if (errors.length > 0) {
-            this.warn(`Snapshot errors: ${errors.join('; ')}`);
-            this.status({ fill: 'red', shape: 'ring', text: 'error' });
+            const errStr = errors.join('; ');
+            if (errStr.includes('503') || errStr.includes('no responders')) {
+              this.status({ fill: 'green', shape: 'ring', text: 'waiting for provider' });
+              this.debug(`Snapshot waiting: ${errStr}`);
+            } else if (errStr.includes('Authorization') || errStr.includes('Permission')) {
+              this.status({ fill: 'yellow', shape: 'ring', text: 'auth failed' });
+              this.warn(`Snapshot auth failed: ${errStr}`);
+            } else {
+              this.status({ fill: 'red', shape: 'ring', text: 'error' });
+              this.warn(`Snapshot errors: ${errStr}`);
+            }
           } else {
             this.status({ fill: 'green', shape: 'ring', text: 'empty' });
           }
@@ -360,10 +369,13 @@ module.exports = function (RED) {
 
     this.on('input', (msg, send, done) => {
       let overrideItems = null;
-      if (Array.isArray(msg.payload) && msg.payload.length > 0) {
-        // Pass the raw array items (String or Object {provider, key})
-        // performSnapshot will handle filtering
-        overrideItems = msg.payload;
+      if (msg.payload) {
+        if (Array.isArray(msg.payload) && msg.payload.length > 0) {
+          overrideItems = msg.payload;
+        } else if (typeof msg.payload === 'string' || (typeof msg.payload === 'object' && !Buffer.isBuffer(msg.payload))) {
+          // Allow single item dynamic read (convenience)
+          overrideItems = [msg.payload];
+        }
       }
 
       performSnapshot(overrideItems)
