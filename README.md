@@ -87,8 +87,8 @@ Changes values in other providers.
     }
     ```json
     {
-      "provider": "target_provider_id",
-      "key": "variable_key",
+      "provider": "u_os_sbm",
+      "key": "ur20_8do_p_1.process_data.channel_7.do",
       "value": 123
     }
     ```

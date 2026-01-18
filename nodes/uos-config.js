@@ -457,10 +457,18 @@ module.exports = function (RED) {
         if (!def || !def.variables) return null;
 
         const v = def.variables.find(v => v.key === variableKey);
-        if (v) return v.id;
+        if (v) {
+          return {
+            id: v.id,
+            fingerprint: def.fingerprint || BigInt(0),
+            dataType: v.dataType
+          };
+        }
 
         // Try explicit numeric string fallback
-        if (!isNaN(variableKey)) return parseInt(variableKey);
+        if (!isNaN(variableKey)) {
+          return { id: parseInt(variableKey), fingerprint: BigInt(0) }; // Fallback, no fingerprint known
+        }
 
         return null;
       } catch (e) {
