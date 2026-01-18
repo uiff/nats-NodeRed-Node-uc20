@@ -1,8 +1,12 @@
-
 **Unofficial Node-RED Package for Weidmüller u-OS Data Hub**
 
 Read, write, and provide variables via NATS protocol using **OAuth2 authentication**.
 Optimized for high performance and real-time updates.
+
+> **IMPORTANT:**
+> These nodes **MUST** run directly on the **u-OS device** (e.g. as a simplified App or Snap).
+> The system's NATS server is **NOT accessible from the outside** (blocked by firewall/binding).
+> You cannot use this package from a remote Node-RED instance (e.g. on your Laptop) to connect to the device.
 
 Maintained by [IoTUeli](https://iotueli.ch). Source: [GitHub](https://github.com/uiff/nats-NodeRed-Node-uc20)
 
