@@ -154,7 +154,7 @@ module.exports = function (RED) {
         const { payload, fingerprint: fp } = modPayloads.buildProviderDefinitionEvent(definitions);
         const subject = modSubjects.providerDefinitionChanged(this.providerId);
 
-        console.log(`[DataHub Output] Publishing definition for Provider '${this.providerId}' to '${subject}'`);
+        // console.log(`[DataHub Output] Publishing definition for Provider '${this.providerId}' to '${subject}'`);
 
         fingerprint = fp;
         await nc.publish(subject, payload);
