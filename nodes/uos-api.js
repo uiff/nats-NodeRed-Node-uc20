@@ -147,5 +147,77 @@ module.exports = function (RED) {
         });
     }
 
+    // Admin API for Node-RED Editor (Browsing)
+    RED.httpAdmin.get('/uos-api/providers/:config', RED.auth.needsPermission('uos-api.read'), async function (req, res) {
+        try {
+            const configNode = RED.nodes.getNode(req.params.config);
+            if (!configNode) {
+                res.status(404).json({ error: "Config node not found/deployed" });
+                return;
+            }
+
+            const token = await configNode.getToken();
+            if (!token) {
+                res.status(401).json({ error: "No Access Token" });
+                return;
+            }
+
+            const agent = new https.Agent({ rejectUnauthorized: false });
+            const url = `https://${configNode.host}:443/u-os-hub/api/v1/providers`;
+
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` },
+                agent: agent
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const json = await response.json();
+            res.json(json.items || []);
+
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    RED.httpAdmin.get('/uos-api/variables/:config/:provider', RED.auth.needsPermission('uos-api.read'), async function (req, res) {
+        try {
+            const configNode = RED.nodes.getNode(req.params.config);
+            const provider = req.params.provider;
+
+            if (!configNode) {
+                res.status(404).json({ error: "Config node not found/deployed" });
+                return;
+            }
+
+            const token = await configNode.getToken();
+            if (!token) {
+                res.status(401).json({ error: "No Access Token" });
+                return;
+            }
+
+            const agent = new https.Agent({ rejectUnauthorized: false });
+            const url = `https://${configNode.host}:443/u-os-hub/api/v1/providers/${provider}/variables`;
+
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` },
+                agent: agent
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const json = await response.json();
+
+            // Map to simple structure { key: "foo", type: "int" }
+            const simplified = (json.items || []).map(v => ({
+                key: v.key,
+                type: v.data_type
+            }));
+
+            res.json(simplified);
+
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     RED.nodes.registerType('uos-api', UosHttpNode);
 };

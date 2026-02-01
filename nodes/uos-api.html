@@ -97,11 +97,102 @@ $("#node-input-sysAction").val(actions[0].val);
 $("#node-input-sysAction").val(currentVal);
 }
 });
-}
-});
-</script>
 
-<script type="text/html" data-template-name="uos-api">
+// Provider Browsing
+$("#btn-fetch-providers").click(function() {
+var configId = $("#node-input-uosConfig").val();
+if (!configId || configId == "_ADD_") {
+RED.notify("Please select a u-OS Config first.", "error");
+return;
+}
+
+var $btn = $(this); $btn.prop('disabled', true);
+
+$.getJSON('uos-api/providers/' + configId, function(data) {
+$btn.prop('disabled', false);
+if (!Array.isArray(data)) { RED.notify("Invalid response", "error"); return; }
+
+// Simple replacement with autocomplete or just a quick select list could be better
+// For now, let's just show a notification list or simplistic approach
+// Ideally we would replace the input with a select, but we want to allow custom text.
+// Let's use a jQuery UI dialog or simple prompt-like behavior?
+// Let's replace the Input with a Select momentarily to let user pick?
+
+var providers = data.map(p => p.id);
+// Use TypeInput's autocomplete? Or just standard array?
+$("#node-input-dhProvider").autocomplete({
+source: providers,
+minLength: 0
+}).autocomplete("search", "");
+
+RED.notify("Found " + providers.length + " providers. Start typing to see suggestions.", "success");
+
+}).fail(function(jqxhr) {
+$btn.prop('disabled', false);
+RED.notify("Failed to load providers: " + (jqxhr.responseJSON?.error || "Unknown"), "error");
+});
+});
+
+// Variable Browsing
+$("#btn-fetch-variables").click(function() {
+var configId = $("#node-input-uosConfig").val();
+var provider = $("#node-input-dhProvider").val();
+
+if (!configId || configId == "_ADD_") { RED.notify("Please select a u-OS Config first.", "error"); return; }
+if (!provider) { RED.notify("Please enter a Provider ID first.", "error"); return; }
+
+var $btn = $(this); $btn.prop('disabled', true);
+var $container = $("#var-browser-container");
+var $list = $("#var-select-list");
+
+$container.show();
+$list.html('<option>Loading...</option>');
+
+$.getJSON('uos-api/variables/' + configId + '/' + provider, function(data) {
+$btn.prop('disabled', false);
+$list.empty();
+
+if (data.length === 0) {
+$list.append('<option disabled>No variables found</option>');
+return;
+}
+
+// Sort
+data.sort((a,b) => a.key.localeCompare(b.key));
+
+data.forEach(v => {
+$list.append($("<option>", { value: v.key, text: v.key }));
+    });
+
+    // Filter Logic
+    $("#var-filter").off("keyup").on("keyup", function() {
+    var val = $(this).val().toLowerCase();
+    $list.find("option").each(function() {
+    var text = $(this).text().toLowerCase();
+    $(this).toggle(text.indexOf(val) > -1);
+    });
+    });
+
+    // Selection Logic
+    $list.off("change").on("change", function() {
+    var selected = $(this).val();
+    if (selected) {
+    $("#node-input-dhVariable").val(selected);
+    $container.hide();
+    }
+    });
+
+    }).fail(function(jqxhr) {
+    $btn.prop('disabled', false);
+    $container.hide();
+    RED.notify("Failed to load variables: " + (jqxhr.responseJSON?.error || "Unknown"), "error");
+    });
+    });
+    }
+    });
+    </script>
+
+    <script type="text/html" data-template-name="uos-api">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -129,13 +220,25 @@ $("#node-input-sysAction").val(currentVal);
                 <option value="list_variables">List Variables</option>
             </select>
         </div>
+        
         <div class="form-row">
             <label for="node-input-dhProvider"><i class="fa fa-server"></i> Provider</label>
-            <input type="text" id="node-input-dhProvider" placeholder="e.g. u_os_sbm">
+            <div style="display:flex; width:70%;">
+                <input type="text" id="node-input-dhProvider" placeholder="e.g. u_os_sbm" style="flex:1;">
+                <button id="btn-fetch-providers" class="red-ui-button" style="margin-left: 5px;" title="Load Providers"><i class="fa fa-refresh"></i></button>
+            </div>
         </div>
-        <div class="form-row">
+
+        <div class="form-row" id="row-dhVariable">
             <label for="node-input-dhVariable"><i class="fa fa-tag"></i> Variable</label>
-            <input type="text" id="node-input-dhVariable" placeholder="e.g. digital_nameplate.software_version">
+            <div style="display:flex; width:70%;">
+                 <input type="text" id="node-input-dhVariable" placeholder="e.g. digital_nameplate..." style="flex:1;">
+                 <button id="btn-fetch-variables" class="red-ui-button" style="margin-left: 5px;" title="Browse Variables"><i class="fa fa-list"></i></button>
+            </div>
+            <div id="var-browser-container" style="display:none; margin-top:10px; border:1px solid #ccc; background:#fff; padding:5px;">
+                 <input type="text" id="var-filter" placeholder="Filter variables..." style="width:100%; box-sizing:border-box; margin-bottom:5px;">
+                 <select id="var-select-list" size="10" style="width:100%; border:1px solid #eee;"></select>
+            </div>
         </div>
     </div>
 
@@ -160,7 +263,7 @@ $("#node-input-sysAction").val(currentVal);
     </div>
 </script>
 
-<script type="text/html" data-help-name="uos-api">
+    <script type="text/html" data-help-name="uos-api">
     <p>A unified node for interacting with Weidmüller u-OS HTTP APIs.</p>
     
     <h3>Prerequisites</h3>
