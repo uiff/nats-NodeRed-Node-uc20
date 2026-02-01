@@ -219,7 +219,9 @@ module.exports = function (RED) {
 
                 const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
                 const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
-                const states = payloads.decodeVariableList(snapshotObj.variables());
+                // Optimization: Pass activeWhitelist to decoder
+                // Although snapshot usually contains only requested IDs, this adds safety/speed for full snapshots
+                const states = payloads.decodeVariableList(snapshotObj.variables(), activeWhitelist);
 
                 const filteredSnapshot = processStates(states);
                 if (filteredSnapshot.length > 0) {
@@ -267,6 +269,20 @@ module.exports = function (RED) {
 
 
 
+        // Create Whitelist Set for Optimized Decoding
+        const whitelistIds = new Set();
+        // Resolve keys to IDs and populate whitelist
+        if (this.variables.length > 0) {
+          const requestedKeys = new Set(this.variables);
+          for (const def of defMap.values()) {
+            if (requestedKeys.has(def.key)) {
+              whitelistIds.add(Number(def.id));
+            }
+          }
+        }
+        // If whitelist is empty (Wildcard mode), pass null to decoder to read ALL.
+        const activeWhitelist = whitelistIds.size > 0 ? whitelistIds : null;
+
         await performSnapshot();
 
         // RECONNECT LOGIC
@@ -284,12 +300,21 @@ module.exports = function (RED) {
           }
 
           this.log(`Subscribing to changes for ${this.providerId}...`);
-          sub = nc.subscribe(subjects.varsChangedEvent(this.providerId));
+
+          // Optimization: Increase maxMessages/maxBytes pending limits
+          // Default is often small (e.g. 65k bytes or related msg count). Raising to prevent SlowConsumer on bursts.
+          sub = nc.subscribe(subjects.varsChangedEvent(this.providerId), {
+            maxMessages: 10000,
+            maxBytes: 10 * 1024 * 1024 // 10MB Puffer
+          });
+
           (async () => {
             for await (const msg of sub) {
               const eventBB = new flatbuffers.ByteBuffer(msg.data);
               const event = VariablesChangedEvent.getRootAsVariablesChangedEvent(eventBB);
-              const changeStates = payloads.decodeVariableList(event.changedVariables());
+              // Optimization: Pass activeWhitelist to decoder
+              const changeStates = payloads.decodeVariableList(event.changedVariables(), activeWhitelist);
+
               const filtered = processStates(changeStates);
               if (filtered.length === 0) {
                 continue;
@@ -309,6 +334,18 @@ module.exports = function (RED) {
               this.warn(`subscription error: ${err.message}`);
             }
           });
+
+          // Optimization: Monitor for Slow Consumer / Dropped Messages via status iterator
+          (async () => {
+            if (sub && sub.status) {
+              for await (const s of sub.status()) {
+                if (s.type === 'slow_consumer') {
+                  this.warn(`SLOW CONSUMER DETECTED! Use less variables or faster CPU. Dropped: ${s.data}`);
+                  this.status({ fill: 'red', shape: 'dot', text: 'slow consumer (drops)' });
+                }
+              }
+            }
+          })().catch(() => { }); // Ignore status loop errors
         };
 
         connection.on('reconnected', () => {

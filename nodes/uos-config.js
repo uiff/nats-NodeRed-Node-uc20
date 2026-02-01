@@ -708,6 +708,28 @@ module.exports = function (RED) {
           });
         }
 
+        // Filter by Mode
+        const mode = req.query.mode; // 'read', 'write', or defaults to all
+
+        if (mode && Array.isArray(variables)) {
+          variables = variables.filter(v => {
+            // Safe Access Type check (defaults to READ_ONLY if missing)
+            // access is usually: 'READ_ONLY' or 'READ_WRITE'
+            const access = String(v.access || v.accessType || 'READ_ONLY').toUpperCase();
+
+            if (mode === 'write') {
+              // WRITE requires READ_WRITE (or WRITE_ONLY if that existed)
+              return access.includes('WRITE');
+            } else if (mode === 'read') {
+              // READ allows everything (READ_ONLY and READ_WRITE)
+              // So theoretically we return everything.
+              // But maybe the user wants to filter OUT Write-Only? (Not common in u-OS)
+              return true;
+            }
+            return true;
+          });
+        }
+
         res.json(variables);
       }
     }

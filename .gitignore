@@ -1,0 +1,5 @@
+node_modules/
+offline-packages/
+*.tgz
+.DS_Store
+.env

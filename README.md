@@ -109,6 +109,17 @@ Publishes your own data to the Data Hub.
 
 ---
 
+## Performance & Reliability
+- **High-Speed Decoding (Filter-on-Decode):** The node now intelligently filters incoming data at the byte-level. Even if a provider sends thousands of variables, Node-RED only decodes the ones you have selected. This massively reduces CPU usage.
+- **Large Buffers:** The internal NATS buffer has been increased (10MB) to handle event bursts (e.g. rapid switching).
+- **Slow Consumer Warning:** If Node-RED cannot keep up, a "SLOW CONSUMER" warning will appear in the debug log to alert you of dropped messages.
+
+## UI Features
+- **Grouped Variables:** Variables are automatically grouped by folder (prefix) in the selection list (e.g. `ur20._4com...`).
+- **Smart Filtering:** 
+    - **Read Node** shows all variables.
+    - **Write Node** automatically hides Read-Only variables to prevent errors.
+
 ## Troubleshooting
 
 - **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.

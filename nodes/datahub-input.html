@@ -155,34 +155,123 @@
 
         const selectedMap = getSelectedMap();
 
+        // Grouping Logic
+        const groups = {};
+        const noGroup = [];
+
         vars.forEach(v => {
+          const key = v.key || '';
+          const parts = key.split('.');
+          if (parts.length > 1) {
+            const groupName = parts[0];
+            if (!groups[groupName]) groups[groupName] = [];
+            groups[groupName].push(v);
+          } else {
+            noGroup.push(v);
+          }
+        });
+
+        // Helper to render a single row
+        const createRow = (v) => {
           let rawId = (v.id !== undefined && v.id !== null) ? v.id : v.Id;
           const safeId = (rawId !== undefined && rawId !== null) ? rawId : 'ERR';
           const isSelected = selectedMap.has(v.key);
 
           const row = $('<div>', { class: 'var-row', style: rowStyle });
-
           const cbContainer = $('<div>', { style: 'text-align:center;' });
           const cb = $('<input type="checkbox" class="var-checkbox">')
             .prop('checked', isSelected)
             .data('key', v.key)
             .data('id', safeId);
           cbContainer.append(cb);
-
           const label = $('<div>', { style: keyStyle, title: v.key }).text(v.key);
-
           row.append(cbContainer).append(label);
-          $listContainer.append(row);
+          return row;
+        };
+
+        // Render Groups
+        Object.keys(groups).sort().forEach(groupName => {
+          const groupVars = groups[groupName];
+
+          // Header
+          const header = $('<div>', {
+            style: 'background:#eee; padding:5px 10px; font-weight:bold; cursor:pointer; border-bottom:1px solid #ddd; display:flex; align-items:center;'
+          });
+          const icon = $('<i class="fa fa-caret-right" style="margin-right:5px; width:10px;"></i>');
+          header.append(icon).append($('<span>').text(groupName + ` (${groupVars.length})`));
+
+          // Container for items
+          const itemContainer = $('<div>', { style: 'display:none; padding-left:0;' });
+
+          groupVars.forEach(v => {
+            itemContainer.append(createRow(v));
+          });
+
+          // Toggle Logic
+          header.click(function () {
+            const isVisible = itemContainer.is(':visible');
+            itemContainer.toggle(!isVisible);
+            icon.removeClass(isVisible ? 'fa-caret-down' : 'fa-caret-right').addClass(isVisible ? 'fa-caret-right' : 'fa-caret-down');
+          });
+
+          // Auto-expand if any child is selected OR if filtering
+          const hasSelection = groupVars.some(v => selectedMap.has(v.key));
+          if (hasSelection) {
+            header.click(); // Expand
+          }
+
+          $listContainer.append(header).append(itemContainer);
         });
+
+        // Render Ungrouped
+        if (noGroup.length > 0) {
+          const header = $('<div>', {
+            style: 'background:#eee; padding:5px 10px; font-weight:bold; border-bottom:1px solid #ddd; color:#666;'
+          }).text('Other Variables');
+          $listContainer.append(header);
+
+          noGroup.forEach(v => {
+            $listContainer.append(createRow(v));
+          });
+        }
       };
 
+      // Adjusted filter to open groups when searching
       const filterList = (term) => {
-        const rows = $listContainer.find('.var-row');
-        term = term.toLowerCase();
-        rows.each(function () {
-          const text = $(this).find('div:nth-child(2)').text().toLowerCase(); // 2nd child is name (grid)
-          $(this).toggle(text.indexOf(term) > -1);
+        const termLower = term.toLowerCase();
+
+        // Show all containers first to filter their rows
+        $listContainer.children().show();
+
+        // Iterate groups (header + div container pairs)
+        // Group Headers are usually direct children?
+        // Actually, logic needs to be robust.
+
+        // Simplest: Re-render? No, state/checkboxes lost.
+        // Hiding logic:
+        $listContainer.find('.var-row').each(function () {
+          const text = $(this).text().toLowerCase();
+          const match = text.indexOf(termLower) > -1;
+          $(this).toggle(match);
+
+          // If matching, ensure parent group container is visible
+          if (match) {
+            $(this).parent().show();
+            // Ensure header icon is correct (caret down)
+            const container = $(this).parent();
+            const header = container.prev();
+            if (header.find('.fa-caret-right').length) {
+              header.find('.fa').removeClass('fa-caret-right').addClass('fa-caret-down');
+            }
+          }
         });
+
+        // Hide empty group headers/containers?
+        // Let's keep it simple for now: Open all if search term exists
+        if (termLower.length > 0) {
+          $listContainer.find('div[style*="display:none"]').show();
+          $listContainer.find('.fa-caret-right').removeClass('fa-caret-right').addClass('fa-caret-down');
+        }
       };
 
       $searchInput.on('keyup', function () {
@@ -218,7 +307,7 @@
         // We generally don't. But fetch providers works if deployed.
 
         $.ajax({
-          url: 'uos/providers/' + configNodeId + '/' + providerId + '/variables',
+          url: 'uos/providers/' + configNodeId + '/' + providerId + '/variables?mode=read',
           success: function (data) {
             $fetchBtn.prop('disabled', false);
             $statusMsg.text('');
@@ -342,6 +431,12 @@
 
 <script type="text/html" data-help-name="datahub-input">
     <p><b>DataHub - Read</b> reads variables from u-OS Data Hub providers.</p>
+    <h3>Features</h3>
+    <ul>
+        <li><b>Smart Filtering:</b> Only selected variables are decoded (Filter-on-Decode), significantly reducing CPU usage.</li>
+        <li><b>Grouped Selection:</b> Variables are organized by prefix (e.g., Device Name) for easier navigation.</li>
+        <li><b>High Performance:</b> Enhanced buffering handles rapid data bursts reliably.</li>
+    </ul>
     <h3>Configuration</h3>
     <ol>
         <li><b>Config:</b> Select your u-OS connection.</li>
