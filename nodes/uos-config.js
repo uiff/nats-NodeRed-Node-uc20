@@ -49,7 +49,32 @@ module.exports = function (RED) {
         this.warn("Illegal Client Name 'u_os_sbm' detected! It conflicts with the system provider. Forcing rename to 'nodered'.");
         this.clientName = 'nodered';
       }
-      this.scope = DEFAULT_SCOPE;
+
+      // Dynamic Scope Generation
+      this.enableSystemAdmin = config.enableSystemAdmin || false;
+      this.customScopes = config.customScopes || "";
+
+      const baseScopes = DEFAULT_SCOPE.split(' ');
+      const adminScopes = [
+        'u-os-adm.logging.readonly',
+        'u-os-adm.network.readwrite',
+        'u-os-adm.recovery.readwrite',
+        'u-os-adm.security.readwrite',
+        'u-os-adm.system.readwrite'
+      ];
+
+      let finalScopes = [...baseScopes];
+      if (this.enableSystemAdmin) {
+        finalScopes.push(...adminScopes);
+      }
+      if (this.customScopes.trim()) {
+        const extras = this.customScopes.split(' ').map(s => s.trim()).filter(s => s);
+        finalScopes.push(...extras);
+      }
+
+      // Deduplicate
+      this.scope = [...new Set(finalScopes)].join(' ');
+
       this.clientId = this.credentials ? this.credentials.clientId : null;
       this.clientSecret = this.credentials ? this.credentials.clientSecret : null;
       this.tokenInfo = null;

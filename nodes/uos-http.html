@@ -1,0 +1,150 @@
+<script type="text/javascript">
+    RED.nodes.registerType('uos-http', {
+        category: 'Web Services',
+        color: '#a6bbcf',
+        defaults: {
+            name: { value: "" },
+            uosConfig: { type: "uos-config", required: true },
+            mode: { value: "datahub" },
+
+            // DataHub
+            dhAction: { value: "read" },
+            dhProvider: { value: "" },
+            dhVariable: { value: "" },
+
+            // System
+            sysCategory: { value: "system" },
+            sysAction: { value: "info" }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "uos-api.svg",
+        label: function () {
+            return this.name || "u-OS API";
+        },
+        oneditprepare: function () {
+            $("#node-input-mode").on("change", function () {
+                var mode = $(this).val();
+                if (mode === "datahub") {
+                    $(".uos-mode-datahub").show();
+                    $(".uos-mode-system").hide();
+                } else {
+                    $(".uos-mode-datahub").hide();
+                    $(".uos-mode-system").show();
+                }
+            });
+
+            // System Action Dynamic Options
+            const sysActions = {
+                system: [
+                    { val: "info", label: "Get System Info" },
+                    { val: "nameplate", label: "Get Nameplate" },
+                    { val: "disks", label: "Get Disks" },
+                    { val: "reboot", label: "Reboot System (POST)" }
+                ],
+                network: [
+                    { val: "get_state", label: "Get State" },
+                    { val: "get_config", label: "Get Config" },
+                    { val: "set_config", label: "Set Config (PUT)" },
+                    { val: "update_config", label: "Update Config (PATCH)" }
+                ],
+                logging: [
+                    { val: "entries", label: "Get Entries" },
+                    { val: "sources", label: "Get Sources" },
+                    { val: "create_report", label: "Create Report" }
+                ],
+                security: [
+                    { val: "get_config", label: "Get Config" },
+                    { val: "set_config", label: "Set Config (PUT)" }
+                ],
+                recovery: [
+                    { val: "factory_reset", label: "Factory Reset" }
+                ]
+            };
+
+            $("#node-input-sysCategory").on("change", function () {
+                var cat = $(this).val();
+                var actions = sysActions[cat] || [];
+                var select = $("#node-input-sysAction");
+                select.empty();
+                actions.forEach(function (a) {
+                    select.append($("<option></option>").attr("value", a.val).text(a.label));
+                });
+                // Restore previous value if feasible, otherwise select first
+                // (Logic simplified here)
+            });
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="uos-http">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-uosConfig"><i class="fa fa-cog"></i> u-OS Config</label>
+        <input type="text" id="node-input-uosConfig">
+    </div>
+    <div class="form-row">
+        <label for="node-input-mode"><i class="fa fa-sliders"></i> Mode</label>
+        <select id="node-input-mode">
+            <option value="datahub">DataHub Variables</option>
+            <option value="system">System Administration</option>
+        </select>
+    </div>
+
+    <!-- DataHub Mode -->
+    <div class="uos-mode-datahub">
+        <div class="form-row">
+            <label for="node-input-dhAction"><i class="fa fa-play"></i> Action</label>
+            <select id="node-input-dhAction">
+                <option value="read">Read Variable</option>
+                <option value="write">Write Variable</option>
+                <option value="list_providers">List Providers</option>
+                <option value="list_variables">List Variables</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="node-input-dhProvider"><i class="fa fa-server"></i> Provider</label>
+            <input type="text" id="node-input-dhProvider" placeholder="e.g. u_os_sbm">
+        </div>
+        <div class="form-row">
+            <label for="node-input-dhVariable"><i class="fa fa-tag"></i> Variable</label>
+            <input type="text" id="node-input-dhVariable" placeholder="e.g. digital_nameplate.software_version">
+        </div>
+    </div>
+
+    <!-- System Mode -->
+    <div class="uos-mode-system" style="display:none;">
+        <div class="form-row">
+            <label for="node-input-sysCategory"><i class="fa fa-folder"></i> Category</label>
+            <select id="node-input-sysCategory">
+                <option value="system">System</option>
+                <option value="network">Network</option>
+                <option value="logging">Logging</option>
+                <option value="security">Security</option>
+                <option value="recovery">Recovery</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="node-input-sysAction"><i class="fa fa-bolt"></i> Action</label>
+            <select id="node-input-sysAction">
+                <!-- Populated dynamically -->
+            </select>
+        </div>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="uos-http">
+    <p>A unified node for u-OS HTTP APIs.</p>
+    
+    <h3>Modes</h3>
+    <dl class="message-properties">
+        <dt>DataHub Variables</dt>
+        <dd>Access values via the standard DataHub HTTP API. Use for devices that don't support NATS or simple polling.</dd>
+        
+        <dt>System Administration</dt>
+        <dd>Manage the u-OS device: Network, Logs, Security, etc. Requires <b>Enable System Admin</b> in config.</dd>
+    </dl>
+</script>
