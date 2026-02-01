@@ -1,0 +1,150 @@
+[
+    {
+        "id": "intro-tab",
+        "type": "tab",
+        "label": "u-OS API Demo",
+        "disabled": false,
+        "info": "Example flow for the **u-OS API** node.\n\nDemonstrates:\n1. **System Admin**: Getting System Info (CPU, OS Model)\n2. **DataHub**: Reading a variable via HTTP (instead of NATS)\n\n**Setup:**\n- Open the `u-OS API` nodes and configure your `u-OS Config` credentials.\n- Determine a valid Provider/Variable for the DataHub test."
+    },
+    {
+        "id": "inject-sys-info",
+        "type": "inject",
+        "z": "intro-tab",
+        "name": "Get System Info",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 120,
+        "wires": [
+            [
+                "uos-api-sys-info"
+            ]
+        ]
+    },
+    {
+        "id": "uos-api-sys-info",
+        "type": "uos-api",
+        "z": "intro-tab",
+        "name": "System Info",
+        "uosConfig": "config-node-id",
+        "mode": "system",
+        "dhAction": "read",
+        "dhProvider": "",
+        "dhVariable": "",
+        "sysCategory": "system",
+        "sysAction": "info",
+        "x": 370,
+        "y": 120,
+        "wires": [
+            [
+                "debug-sys-info"
+            ]
+        ]
+    },
+    {
+        "id": "debug-sys-info",
+        "type": "debug",
+        "z": "intro-tab",
+        "name": "System Info Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 590,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "inject-dh-read",
+        "type": "inject",
+        "z": "intro-tab",
+        "name": "Read Variable (HTTP)",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 220,
+        "wires": [
+            [
+                "uos-api-dh-read"
+            ]
+        ]
+    },
+    {
+        "id": "uos-api-dh-read",
+        "type": "uos-api",
+        "z": "intro-tab",
+        "name": "Read via HTTP",
+        "uosConfig": "config-node-id",
+        "mode": "datahub",
+        "dhAction": "read",
+        "dhProvider": "u_os_adm",
+        "dhVariable": "digital_nameplate.serial_number",
+        "sysCategory": "system",
+        "sysAction": "info",
+        "x": 380,
+        "y": 220,
+        "wires": [
+            [
+                "debug-dh-read"
+            ]
+        ]
+    },
+    {
+        "id": "debug-dh-read",
+        "type": "debug",
+        "z": "intro-tab",
+        "name": "Variable Value",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 580,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "config-node-id",
+        "type": "uos-config",
+        "name": "Local u-OS",
+        "host": "127.0.0.1",
+        "port": 4222,
+        "clientName": "nodered",
+        "enableSystemAdmin": true
+    }
+]
