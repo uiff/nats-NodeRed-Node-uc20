@@ -209,8 +209,11 @@ module.exports = function (RED) {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const json = await response.json();
 
+            // Handle both Array (direct list) or Object (wrapped in items)
+            const items = Array.isArray(json) ? json : (json.items || []);
+
             // Map to simple structure { key: "foo", type: "int" }
-            const simplified = (json.items || []).map(v => ({
+            const simplified = items.map(v => ({
                 key: v.key,
                 type: v.data_type
             }));
