@@ -109,6 +109,33 @@ Publishes your own data to the Data Hub.
 
 ---
 
+### 3. u-OS API Node (Orange)
+The **u-OS API** node provides a unified HTTP interface for both DataHub Variables and System Administration.
+
+*   **Mode: DataHub Variables**
+    *   Alternative access to variables via HTTP (REST) instead of NATS.
+    *   Actions: `Read`, `Write`, `List Providers`, `List Variables`.
+    *   Useful for one-off requests or environments where NATS is restricted.
+
+*   **Mode: System Administration**
+    *   Manage the u-OS device itself.
+    *   **Categories**:
+        *   **System**: Get info, nameplate, disk usage, or trigger reboot.
+        *   **Network**: Read/Write network IP/Gateway/DNS configuration.
+        *   **Security**: Enable/Disable Root access.
+        *   **Logging**: Access system logs and trigger reports.
+        *   **Recovery**: Factory Reset.
+    *   **Requirements**: You must enable **System Admin Access** in the `u-OS Config` node to grant the necessary OAuth scopes (`u-os-adm.*`).
+
+## Configuration
+1.  **Host**: IP address of the u-OS device (default: `127.0.0.1` for local Node-RED).
+2.  **Auth**: Client ID and Client Secret (from u-OS Device Administration).
+3.  **Scopes**:
+    *   Standard scopes for DataHub are active by default.
+    *   Check **"Enable System Admin Access"** to manage the system.
+
+---
+
 ## Performance & Reliability
 - **High-Speed Decoding (Filter-on-Decode):** The node now intelligently filters incoming data at the byte-level. Even if a provider sends thousands of variables, Node-RED only decodes the ones you have selected. This massively reduces CPU usage.
 - **Large Buffers:** The internal NATS buffer has been increased (10MB) to handle event bursts (e.g. rapid switching).
