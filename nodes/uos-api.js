@@ -147,5 +147,5 @@ module.exports = function (RED) {
         });
     }
 
-    RED.nodes.registerType('uos-http', UosHttpNode);
+    RED.nodes.registerType('uos-api', UosHttpNode);
 };

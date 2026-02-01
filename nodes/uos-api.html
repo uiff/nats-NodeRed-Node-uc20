@@ -1,5 +1,5 @@
 <script type="text/javascript">
-    RED.nodes.registerType('uos-http', {
+    RED.nodes.registerType('uos-api', {
         category: 'Web Services',
         color: '#a6bbcf',
         defaults: {
@@ -72,12 +72,23 @@
                 });
                 // Restore previous value if feasible, otherwise select first
                 // (Logic simplified here)
+
+                // If the current sysAction value is not valid for this category, reset it
+                const currentVal = $(this).data('prevAction') || $("#node-input-sysAction").val();
+                let found = false;
+                actions.forEach(action => { if (action.val === currentVal) found = true; });
+
+                if (!found && actions.length > 0) {
+                    $("#node-input-sysAction").val(actions[0].val);
+                } else if (found) {
+                    $("#node-input-sysAction").val(currentVal);
+                }
             });
         }
     });
 </script>
 
-<script type="text/html" data-template-name="uos-http">
+<script type="text/html" data-template-name="uos-api">
     <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name" placeholder="Name">
@@ -136,7 +147,7 @@
     </div>
 </script>
 
-<script type="text/html" data-help-name="uos-http">
+<script type="text/html" data-help-name="uos-api">
     <p>A unified node for u-OS HTTP APIs.</p>
     
     <h3>Modes</h3>
