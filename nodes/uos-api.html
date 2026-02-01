@@ -115,12 +115,25 @@
                     if (!Array.isArray(data)) { RED.notify("Invalid response", "error"); return; }
 
                     var providers = data.map(p => p.id);
-                    $("#node-input-dhProvider").autocomplete({
-                        source: providers,
-                        minLength: 0
-                    }).autocomplete("search", "");
 
-                    RED.notify("Found " + providers.length + " providers. Start typing to see suggestions.", "success");
+                    // Update Autocomplete Source
+                    var $input = $("#node-input-dhProvider");
+
+                    // Initialize if not already
+                    if (!$input.data("ui-autocomplete")) {
+                        $input.autocomplete({
+                            source: providers,
+                            minLength: 0
+                        });
+                    } else {
+                        $input.autocomplete("option", "source", providers);
+                    }
+
+                    // Force Open
+                    $input.autocomplete("search", "");
+                    $input.focus();
+
+                    RED.notify("Found " + providers.length + " providers.", "success");
 
                 }).fail(function (jqxhr) {
                     $btn.prop('disabled', false);

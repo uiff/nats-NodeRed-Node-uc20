@@ -172,7 +172,10 @@ module.exports = function (RED) {
 
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const json = await response.json();
-            res.json(json.items || []);
+
+            // Handle both Array (direct list) or Object (wrapped in items)
+            const items = Array.isArray(json) ? json : (json.items || []);
+            res.json(items);
 
         } catch (err) {
             res.status(500).json({ error: err.message });
