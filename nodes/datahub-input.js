@@ -74,12 +74,14 @@ module.exports = function (RED) {
     // Pre-populate raw map with manual definitions
     this.manualDefs.forEach(d => defMap.set(d.id, { ...d, type: 'MANUAL', dataType: 'UNKNOWN', access: 'READ_ONLY' }));
 
+    // Optimization: Use Set for O(1) lookups
+    const variableSet = new Set(this.variables.map(v => normalizeKey(v)));
+
     const shouldInclude = (key) => {
-      if (!this.variables.length) {
+      if (variableSet.size === 0) {
         return true;
       }
-      const needle = normalizeKey(key);
-      return this.variables.includes(needle);
+      return variableSet.has(normalizeKey(key));
     };
 
     const processStates = (states) => {
@@ -101,6 +103,12 @@ module.exports = function (RED) {
         this.warnOnce('Filtering active but Variable Definitions failed to load (API Error). Names cannot be resolved. Try using "Name:ID" format to manually map variables.');
       }
 
+      // Optimization: redundant check removed if whitelist is active, but keeping as safeguard 
+      // If we used a whitelist, we know we only have relevant IDs.
+      // However, keeping strict check is safer for "Name-based" consistency.
+      // But we can optimize: if mapped.length is same as whitelist size, we are good?
+      // Actually, let's keep it simple: Filter-on-Decode handles the heavy lifting (byte level).
+      // This JS filter is now cheap (O(1) lookup). We'll keep it for correctness in case of aliasing/manual IDs.
       return mapped.filter((state) => shouldInclude(state.key));
     };
 
