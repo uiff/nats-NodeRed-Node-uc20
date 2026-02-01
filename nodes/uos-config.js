@@ -133,6 +133,8 @@ module.exports = function (RED) {
 
       this.pendingTokenRequest = (async () => {
         try {
+          this.log(`Requesting Token with Scopes: ${this.scope}`); // DEBUG Log
+
           const params = new URLSearchParams({
             grant_type: 'client_credentials',
             scope: this.scope,

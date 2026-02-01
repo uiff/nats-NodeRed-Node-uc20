@@ -133,6 +133,140 @@ RED.notify("Failed to load providers: " + (jqxhr.responseJSON?.error || "Unknown
 });
 });
 
+category: 'Weidmueller DataHub',
+color: '#FFCC66',
+defaults: {
+name: { value: "" },
+uosConfig: { type: "uos-config", required: true },
+mode: { value: "datahub" },
+
+// DataHub
+dhAction: { value: "read" },
+dhProvider: { value: "" },
+dhVariable: { value: "" },
+
+// System
+sysCategory: { value: "system" },
+sysAction: { value: "info" }
+},
+inputs: 1,
+outputs: 1,
+icon: "uos-api.svg",
+label: function () {
+return this.name || "u-OS API";
+},
+oneditprepare: function () {
+$("#node-input-mode").on("change", function () {
+var mode = $(this).val();
+if (mode === "datahub") {
+$(".uos-mode-datahub").show();
+$(".uos-mode-system").hide();
+$("#node-input-dhAction").change(); // Trigger redraw of vars
+} else {
+$(".uos-mode-datahub").hide();
+$(".uos-mode-system").show();
+}
+});
+
+// DataHub Action UI refinements
+$("#node-input-dhAction").on("change", function () {
+var action = $(this).val();
+if (action === "list_providers") {
+$("#node-input-dhProvider").parent().hide();
+$("#node-input-dhVariable").parent().hide();
+} else if (action === "list_variables") {
+$("#node-input-dhProvider").parent().show();
+$("#node-input-dhVariable").parent().hide();
+} else {
+$("#node-input-dhProvider").parent().show();
+$("#node-input-dhVariable").parent().show();
+}
+});
+
+// System Action Dynamic Options
+const sysActions = {
+system: [
+{ val: "info", label: "Get System Info (Model, CPU, Version)" },
+{ val: "nameplate", label: "Get Digital Nameplate (Serial, etc.)" },
+{ val: "disks", label: "Get Disk Usage" },
+{ val: "reboot", label: "Reboot System [POST]" }
+],
+network: [
+{ val: "get_state", label: "Get Network State (IPs)" },
+{ val: "get_config", label: "Get Network Config (Settings)" },
+{ val: "set_config", label: "Set Network Config (PUT)" },
+{ val: "update_config", label: "Update Network Config (PATCH)" }
+],
+logging: [
+{ val: "entries", label: "Get Log Entries" },
+{ val: "sources", label: "Get Log Sources" },
+{ val: "create_report", label: "Create Log Report [POST]" }
+],
+security: [
+{ val: "get_config", label: "Get Security Config (Root Access)" },
+{ val: "set_config", label: "Set Security Config (PUT)" }
+],
+recovery: [
+{ val: "factory_reset", label: "Factory Reset [POST]" }
+]
+};
+
+$("#node-input-sysCategory").on("change", function () {
+var cat = $(this).val();
+var actions = sysActions[cat] || [];
+var select = $("#node-input-sysAction");
+select.empty();
+actions.forEach(function (a) {
+select.append($("<option></option>").attr("value", a.val).text(a.label));
+});
+
+// If the current sysAction value is not valid for this category, reset it
+const currentVal = $("#node-input-sysAction").val();
+let found = false;
+actions.forEach(action => { if (action.val === currentVal) found = true; });
+
+if (!found && actions.length > 0) {
+$("#node-input-sysAction").val(actions[0].val);
+} else if (found) {
+$("#node-input-sysAction").val(currentVal);
+}
+});
+
+// Provider Browsing
+$("#btn-fetch-providers").click(function() {
+var configId = $("#node-input-uosConfig").val();
+if (!configId || configId == "_ADD_") {
+RED.notify("Please select a u-OS Config first.", "error");
+return;
+}
+
+var $btn = $(this); $btn.prop('disabled', true);
+
+$.getJSON('uos-api/providers/' + configId, function(data) {
+$btn.prop('disabled', false);
+if (!Array.isArray(data)) { RED.notify("Invalid response", "error"); return; }
+
+// Simple replacement with autocomplete or just a quick select list could be better
+// For now, let's just show a notification list or simplistic approach
+// Ideally we would replace the input with a select, but we want to allow custom text.
+// Let's use a jQuery UI dialog or simple prompt-like behavior?
+// Let's replace the Input with a Select momentarily to let user pick?
+
+var providers = data.map(p => p.id);
+// Use TypeInput's autocomplete? Or just standard array?
+$("#node-input-dhProvider").autocomplete({
+source: providers,
+minLength: 0
+}).autocomplete("search", "");
+
+RED.notify("Found " + providers.length + " providers. Start typing to see suggestions.", "success");
+
+}).fail(function(jqxhr) {
+$btn.prop('disabled', false);
+RED.notify("Failed to load providers: " + (jqxhr.responseJSON?.error || "Unknown"), "error");
+});
+});
+
 // Variable Browsing
 $("#btn-fetch-variables").click(function() {
 var configId = $("#node-input-uosConfig").val();
@@ -140,10 +274,17 @@ var provider = $("#node-input-dhProvider").val();
 
 if (!configId || configId == "_ADD_") { RED.notify("Please select a u-OS Config first.", "error"); return; }
 if (!provider) { RED.notify("Please enter a Provider ID first.", "error"); return; }
-
 var $btn = $(this); $btn.prop('disabled', true);
 var $container = $("#var-browser-container");
 var $list = $("#var-select-list");
+
+// Switch to a div based list for checkboxes instead of select
+// Or verify if current element is select? It is. Let's replace it dynamically or change HTML.
+// Easier: Change HTML in previous step? No, let's manipulate DOM here or use the select with 'multiple' attribute.
+
+// Let's use a standard multiple select
+$list.attr("multiple", "multiple");
+$list.css("height", "200px");
 
 $container.show();
 $list.html('<option>Loading...</option>');
@@ -164,22 +305,28 @@ data.forEach(v => {
 $list.append($("<option>", { value: v.key, text: v.key }));
     });
 
-    // Filter Logic
+    // Add a helper text/button to confirm selection
+    if ($("#btn-confirm-vars").length === 0) {
+    $container.append('<div style="margin-top:5px; text-align:right;"><small>Hold Ctrl for multi-select</small> <button
+            id="btn-confirm-vars" class="red-ui-button red-ui-button-small">Apply Selected</button></div>');
+
+    $("#btn-confirm-vars").click(function(e) {
+    e.preventDefault();
+    var selected = $list.val(); // Returns array for multiple select
+    if (selected && selected.length > 0) {
+    $("#node-input-dhVariable").val(selected.join(', '));
+    $container.hide();
+    }
+    });
+    }
+
+    // Filter Logic (refined for options)
     $("#var-filter").off("keyup").on("keyup", function() {
     var val = $(this).val().toLowerCase();
     $list.find("option").each(function() {
     var text = $(this).text().toLowerCase();
     $(this).toggle(text.indexOf(val) > -1);
     });
-    });
-
-    // Selection Logic
-    $list.off("change").on("change", function() {
-    var selected = $(this).val();
-    if (selected) {
-    $("#node-input-dhVariable").val(selected);
-    $container.hide();
-    }
     });
 
     }).fail(function(jqxhr) {
