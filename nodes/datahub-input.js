@@ -213,40 +213,75 @@ module.exports = function (RED) {
             // Simple Snapshot Logic using Config Node Semaphore
             // The Config Node now handles concurrency (max 3 parallel), preventing 503s naturally.
             // We use a simple retry wrapper just in case.
+            // Chunking Logic (v1.4.13 Optimization)
+            // Prevent MAX_PAYLOAD by splitting large requests
+            const CHUNK_SIZE = 100;
+            const executeRequest = async (ids) => {
+              const reqSubject = subjects.readVariablesQuery(this.providerId);
+              const reqPayload = payloads.buildReadVariablesQuery(ids); // Empty ids = Wildcard
+
+              let snapshotMsg;
+              if (typeof connection.serialRequest === 'function') {
+                snapshotMsg = await connection.serialRequest(reqSubject, reqPayload, { timeout: 10000 });
+              } else {
+                snapshotMsg = await nc.request(reqSubject, reqPayload, { timeout: 10000 });
+              }
+
+              const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
+              const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
+              // Pass activeWhitelist if we are doing a specific read (though executeRequest usually takes specific IDs)
+              return payloads.decodeVariableList(snapshotObj.variables(), activeWhitelist);
+            };
+
             let lastError;
             for (let attempt = 1; attempt <= 3; attempt++) {
               try {
-                let snapshotMsg;
-                // If config node has serialRequest (Semaphore), use it.
-                if (typeof connection.serialRequest === 'function') {
-                  snapshotMsg = await connection.serialRequest(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 10000 });
-                } else {
-                  // Fallback to direct request (unsafe)
-                  snapshotMsg = await nc.request(subjects.readVariablesQuery(this.providerId), payloads.buildReadVariablesQuery(targetIds), { timeout: 10000 });
-                }
+                let states = [];
 
-                const bb = new flatbuffers.ByteBuffer(snapshotMsg.data);
-                const snapshotObj = ReadVariablesQueryResponse.getRootAsReadVariablesQueryResponse(bb);
-                // Optimization: Pass activeWhitelist to decoder
-                // Although snapshot usually contains only requested IDs, this adds safety/speed for full snapshots
-                const states = payloads.decodeVariableList(snapshotObj.variables(), activeWhitelist);
+                // Case A: specific variables requested
+                if (targetIds.length > 0) {
+                  if (targetIds.length > CHUNK_SIZE) {
+                    // Chunk it!
+                    const chunks = [];
+                    for (let i = 0; i < targetIds.length; i += CHUNK_SIZE) {
+                      chunks.push(targetIds.slice(i, i + CHUNK_SIZE));
+                    }
+
+                    // Execute sequentially to avoid flooding
+                    for (const chunk of chunks) {
+                      const chunkStates = await executeRequest(chunk);
+                      states = states.concat(chunkStates);
+                    }
+                  } else {
+                    // Small enough for single request
+                    states = await executeRequest(targetIds);
+                  }
+                }
+                // Case B: Wildcard (read all)
+                else {
+                  // Wildcard cannot effectively be chunked easily on *request* side without knowing IDs first.
+                  // But usually Wildcard Read is only used for debugging / exploration.
+                  // If provider returns huge list, we might still hit limit on *response*.
+                  // Proper solution for Wildcard would be "pagination" supported by Provider, which we don't have yet.
+                  // For now, Wildcard remains single request (as before).
+                  states = await executeRequest([]);
+                }
 
                 const filteredSnapshot = processStates(states);
                 if (filteredSnapshot.length > 0) {
                   this.send({ payload: { type: 'snapshot', variables: filteredSnapshot } });
                   this.status({ fill: 'green', shape: 'dot', text: 'active' });
                 } else {
-                  // Handle empty/partial...
                   this.status({ fill: 'green', shape: 'ring', text: 'active (empty)' });
                 }
                 return true; // Success
 
               } catch (err) {
                 lastError = err;
-                // If semaphore is full or timeout, wait a bit
                 await new Promise(r => setTimeout(r, 1000 * attempt));
               }
             }
+
             if (lastError) {
               const msg = lastError.message || '';
               if (msg.includes('503') || msg.includes('no responders')) {
@@ -254,10 +289,6 @@ module.exports = function (RED) {
                 this.status({ fill: 'yellow', shape: 'dot', text: 'provider offline' });
               } else if (msg.includes('Cooldown')) {
                 this.debug(`Snapshot skipped (Cooldown): ${msg}`);
-                this.status({ fill: 'yellow', shape: 'ring', text: 'cooldown (10s)' });
-              } else if (msg.includes('Authorization') || msg.includes('Permission')) {
-                this.debug(`Snapshot skipped (Auth): ${msg}`);
-                this.status({ fill: 'yellow', shape: 'ring', text: 'auth failed' });
               } else {
                 this.warn(`Snapshot failed: ${msg}`);
                 this.status({ fill: 'red', shape: 'ring', text: 'snapshot error' });

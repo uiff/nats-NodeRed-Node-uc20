@@ -1,11 +1,12 @@
 const fetch = require('node-fetch');
 const { connect, jwtAuthenticator } = require('nats');
 const https = require('https');
-const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly'; // hub.providers.read removed as it does not exist
+const DEFAULT_SCOPE = 'hub.variables.provide hub.variables.readwrite hub.variables.readonly';
 
-if (!process.env.NODE_TLS_REJECT_UNAUTHORIZED) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
+// Create HTTPS Agent that ignores self-signed certs (scoped, not global)
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false
+});
 
 let adminRoutesRegistered = false;
 
@@ -154,7 +155,8 @@ module.exports = function (RED) {
                   Accept: 'application/json',
                 },
                 body: params,
-                timeout: 30000
+                timeout: 30000,
+                agent: httpsAgent // Use our custom agent
               });
 
               if (!res.ok) {
@@ -339,7 +341,7 @@ module.exports = function (RED) {
 
       // Helper to try fetch
       const tryFetch = async (url) => {
-        const res = await fetch(url, { headers });
+        const res = await fetch(url, { headers, agent: httpsAgent });
         if (!res.ok) {
           if (res.status === 404) return null; // Not found, indicate to try next
           throw new Error(`API error ${res.status} from ${url}`);
