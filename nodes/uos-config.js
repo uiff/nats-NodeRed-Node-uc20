@@ -43,6 +43,13 @@ module.exports = function (RED) {
       this.log('Initializing UosConfigNode...');
       this.host = config.host || '127.0.0.1';
       this.port = Number(config.port) || 49360;
+
+      // Auto-fix legacy default port (4222) to u-OS specific port (49360)
+      if (this.port === 4222) {
+        this.warn("Legacy Port 4222 detected. Auto-switching to u-OS DataHub Port 49360.");
+        this.port = 49360;
+      }
+
       this.clientName = config.clientName || 'nodered';
 
       // SAFETY: Prevent impersonating the system provider
