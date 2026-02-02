@@ -118,6 +118,18 @@ The **u-OS** node provides a unified HTTP interface for both DataHub Variables a
 - **Chunking:** Large variable lists are split into 100-item chunks for reliable reading.
 - **Filter-on-Decode:** High-speed filtering at the byte-level to save CPU.
 
+### ⏱️ Benchmarking
+You can verify the speed of your u-OS / NATS setup using the included benchmark flow.
+1. Import `examples/benchmark-flow.json`.
+2. Configure your credentials.
+3. Click the inject button.
+4. Check the Debug output for "Latency Result".
+
+**Expected Round-Trip-Time (RTT):**
+*   **< 4ms:** Excellent (Localhost / standard)
+*   **< 10ms:** OK (High Load)
+*   **> 20ms:** System overloaded or Slow Consumer bottleneck.
+
 ## Troubleshooting
 
 - **Provider not visible?** Check Client ID and Scopes.

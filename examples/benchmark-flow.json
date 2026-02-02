@@ -1,0 +1,129 @@
+[
+    {
+        "id": "bench_tab",
+        "type": "tab",
+        "label": "NATS Benchmark",
+        "disabled": false,
+        "info": "A simple benchmarking flow to measure NATS Round-Trip-Time (RTT) on the u-OS device."
+    },
+    {
+        "id": "bench_inject",
+        "type": "inject",
+        "z": "bench_tab",
+        "name": "Start Benchmark",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{}",
+        "payloadType": "json",
+        "x": 140,
+        "y": 100,
+        "wires": [
+            [
+                "bench_prep"
+            ]
+        ]
+    },
+    {
+        "id": "bench_prep",
+        "type": "function",
+        "z": "bench_tab",
+        "name": "Add Timestamp",
+        "func": "msg.payload = {\n    timestamp: Date.now(),\n    data: \"Benchmark Payload\"\n};\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 340,
+        "y": 100,
+        "wires": [
+            [
+                "bench_provider"
+            ]
+        ]
+    },
+    {
+        "id": "bench_provider",
+        "type": "datahub-output",
+        "z": "bench_tab",
+        "name": "Benchmark Provider",
+        "connection": "bench_config",
+        "providerId": "benchmark_provider",
+        "allowExternalWrite": false,
+        "keepAliveInterval": "60",
+        "x": 580,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "bench_read",
+        "type": "datahub-input",
+        "z": "bench_tab",
+        "name": "Read Benchmark",
+        "connection": "bench_config",
+        "providerId": "benchmark_provider",
+        "manualVariables": "timestamp:0,data:1",
+        "triggerMode": "event",
+        "pollingInterval": "1000",
+        "x": 150,
+        "y": 240,
+        "wires": [
+            [
+                "bench_calc"
+            ]
+        ]
+    },
+    {
+        "id": "bench_calc",
+        "type": "function",
+        "z": "bench_tab",
+        "name": "Calc Latency",
+        "func": "const now = Date.now();\n// Check if it's the update event\nif (msg.payload && msg.payload.type === 'change') {\n    const variable = msg.payload.variables.find(v => v.key === 'timestamp');\n    if (variable) {\n        // The value from NATS comes as string or number depending on decoding\n        const sentTime = Number(variable.value);\n        const latency = now - sentTime;\n        msg.payload = {\n            latency_ms: latency,\n            status: latency < 4 ? \"GREAT\" : (latency < 10 ? \"OK\" : \"SLOW\")\n        };\n        return msg;\n    }\n}\nreturn null;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 240,
+        "wires": [
+            [
+                "bench_debug"
+            ]
+        ]
+    },
+    {
+        "id": "bench_debug",
+        "type": "debug",
+        "z": "bench_tab",
+        "name": "Latency Result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 560,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "bench_config",
+        "type": "uos-config",
+        "clientName": "benchmark-client",
+        "host": "127.0.0.1",
+        "usetls": false
+    }
+]
