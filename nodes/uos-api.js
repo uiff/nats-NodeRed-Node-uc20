@@ -80,13 +80,17 @@ module.exports = function (RED) {
                             if (node.sysAction === 'info') url = `${baseUrl}/system/info`;
                             else if (node.sysAction === 'nameplate') url = `${baseUrl}/system/nameplate`;
                             else if (node.sysAction === 'disks') url = `${baseUrl}/system/disks`;
-                            else if (node.sysAction === 'reboot') { url = `${baseUrl}/system:reboot`; method = 'POST'; }
+                            else if (node.sysAction === 'reboot') {
+                                if (msg.payload !== 'CONFIRM_REBOOT') throw new Error('Safety: Reboot requires msg.payload to be "CONFIRM_REBOOT"');
+                                url = `${baseUrl}/system:reboot`;
+                                method = 'POST';
+                            }
                             break;
                         case 'network':
                             if (node.sysAction === 'get_state') url = `${baseUrl}/network/state`;
                             else if (node.sysAction === 'get_config') url = `${baseUrl}/network/config`;
                             else if (node.sysAction === 'set_config') { url = `${baseUrl}/network/config`; method = 'PUT'; body = JSON.stringify(msg.payload); }
-                            else if (node.sysAction === 'update_config') { url = `${baseUrl}/network/config`; method = 'PATCH'; body = JSON.stringify(msg.payload); } // Content-Type merg-patch?
+                            else if (node.sysAction === 'update_config') { url = `${baseUrl}/network/config`; method = 'PATCH'; body = JSON.stringify(msg.payload); }
                             break;
                         case 'logging':
                             if (node.sysAction === 'entries') url = `${baseUrl}/logging/entries`;
@@ -98,7 +102,11 @@ module.exports = function (RED) {
                             else if (node.sysAction === 'set_config') { url = `${baseUrl}/security/config`; method = 'PUT'; body = JSON.stringify(msg.payload); }
                             break;
                         case 'recovery':
-                            if (node.sysAction === 'factory_reset') { url = `${baseUrl}/recovery:factory-reset`; method = 'POST'; }
+                            if (node.sysAction === 'factory_reset') {
+                                if (msg.payload !== 'CONFIRM_FACTORY_RESET') throw new Error('CRITICAL SAFETY: Factory Reset requires msg.payload to be "CONFIRM_FACTORY_RESET"');
+                                url = `${baseUrl}/recovery:factory-reset`;
+                                method = 'POST';
+                            }
                             break;
                         default:
                             throw new Error(`Unknown System Category: ${node.sysCategory}`);

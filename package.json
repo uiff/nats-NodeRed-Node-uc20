@@ -63,9 +63,11 @@
   "scripts": {
     "build:offline": "node scripts/build-offline.js",
     "generate:fbs": "bash scripts/generate-fbs.sh",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha test/**/*.test.js"
   },
   "devDependencies": {
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0",
     "dotenv": "^17.2.3"
   }
 }

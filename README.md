@@ -17,9 +17,10 @@ Maintained by [IoTUeli](https://iotueli.ch). Source: [GitHub](https://github.com
 | Node | Purpose |
 |------|---------|
 | **u-OS Config** | Central configuration for NATS connection and OAuth credentials. |
-| **DataHub - Read** | Subscribe to variable changes from system providers (e.g. `u_os_adm`). |
-| **DataHub - Write** | Send commands to change variables in other providers. |
-| **DataHub - Provider** | Create your own provider to publish variables to the Data Hub. |
+| **Read** | Subscribe to variable changes from system providers (e.g. `u_os_adm`). |
+| **Write** | Send commands to change variables in other providers. |
+| **Provider** | Create your own provider to publish variables to the Data Hub. |
+| **u-OS** | Unified HTTP Interface for Variables & System Admin (Reboot, Networking, etc.). |
 
 ---
 
@@ -47,10 +48,10 @@ Restart Node-RED. The nodes will appear in the **"Weidmüller DataHub"** categor
 
 ### 2. Configure Node-RED
 
-1. Drag a **DataHub - Read** node to the canvas.
+1. Drag a **Read** node to the canvas.
 2. Click the pencil ✏️ next to **Connection**.
 3. Enter:
-   - **Host:** IP of your u-OS device (e.g. `192.168.10.100`)
+   - **Host:** IP of your u-OS device (e.g. `127.0.0.1` for local).
    - **Client Name:** Important! Give it a name (e.g. `nodered`).
    - **Client ID / Secret:** Paste from Step 1.
 4. Click **Test connection**.
@@ -67,65 +68,41 @@ Import this flow to test reading and writing immediately:
 
 ## Node Usage
 
-### DataHub - Read
+### Read (DataHub Input)
 Reads values from existing providers (like `u_os_adm`).
 - **Provider ID:** Name of the source provider.
 - **Variables:** Use **Load Variables** to browse and select variables.
+  - **New:** Supports **Multi-Select** and **Categorization** (Grouped by prefix).
 - **Trigger:** "Event" (instant update) or "Poll" (interval).
-- **Dynamic Read:** Send `msg.payload` as an Array of keys (e.g. `["machine.status", "temp"]`) to trigger a specific snapshot, ignoring the node configuration.
+- **Chunking (New):** Automatically splits large requests (>100 variables) to prevent timeouts.
 
-### DataHub - Write
+### Write (DataHub Write)
 Changes values in other providers.
 -   **Single Mode:** Select a variable from the list. Send `msg.payload` = value.
--   **Batch Mode:** Select NO variable (clear selection). Send `msg.payload` as a FLAT JSON object: `{"var_key": value, "machine.status": value}` (uses Configured Provider). **Nested objects are NOT supported** (keys must use dot-notation).
--   **Dynamic Mode:** Send a full target object to write anywhere:
-    ```json
-    {
-      "provider": "target_provider_id",
-      "key": "variable_key",
-      "value": 123
-    }
-    ```json
-    {
-      "provider": "u_os_sbm",
-      "key": "ur20_8do_p_1.process_data.channel_7.do",
-      "value": 123
-    }
-    ```
-    Or send an **Array** of these objects to write to multiple providers in one go.
+-   **Batch Mode:** Select NO variable (clear selection). Send `msg.payload` as a FLAT JSON object: `{"var_key": value}`.
 -   **Strict Mode:** Automatically handles Fingerprints for strict providers (e.g. `u_os_sbm`).
 
-### DataHub - Provider
+### Provider (DataHub Output)
 Publishes your own data to the Data Hub.
-- **Provider ID:** Leave empty to use your Client ID (Recommended).
-- **Input:** Send a JSON object: `{ "machine": { "status": "active" } }`.
-- **Auto-Discovery:** Automatically creates variable definitions based on your JSON structure.
-- **Bi-Directional:** Enable "Allow external writes" to let other apps write to your variables. Changes are emitted continuously on the **2nd Output**.
-- **Keep-Alive:** Configurable interval (Default: 300s / 5min).
-- **Quality & Timestamp:** Override metadata by sending an object:
-  ```json
-  { "temp": { "value": 23.5, "quality": "BAD", "timestamp": 1712000000 } }
-  ```
+- **Provider ID:** Name of your provider (e.g. `my-app`).
+- **Auto-Discovery:** Automatically creates variable definitions based on your input JSON structure.
+- **Bi-Directional:** Enable "Allow external writes" to receive commands from other apps.
 
 ---
 
-### 3. u-OS API Node (Orange)
-The **u-OS API** node provides a unified HTTP interface for both DataHub Variables and System Administration.
+### u-OS (API Node)
+The **u-OS** node provides a unified HTTP interface for both DataHub Variables and System Administration.
 
 *   **Mode: DataHub Variables**
     *   Alternative access to variables via HTTP (REST) instead of NATS.
     *   Actions: `Read`, `Write`, `List Providers`, `List Variables`.
     *   Useful for one-off requests or environments where NATS is restricted.
+    *   **New:** Variable Multi-Select and Grouping now supported.
 
 *   **Mode: System Administration**
     *   Manage the u-OS device itself.
-    *   **Categories**:
-        *   **System**: Get info, nameplate, disk usage, or trigger reboot.
-        *   **Network**: Read/Write network IP/Gateway/DNS configuration.
-        *   **Security**: Enable/Disable Root access.
-        *   **Logging**: Access system logs and trigger reports.
-        *   **Recovery**: Factory Reset.
-    *   **Requirements**: You must enable **System Admin Access** in the `u-OS Config` node to grant the necessary OAuth scopes (`u-os-adm.*`).
+    *   **Categories**: System (Reboot), Network, Security, Logging.
+    *   **Requirements**: You must enable **System Admin Access** in the `u-OS Config` node.
 
 ## Configuration
 1.  **Host**: IP address of the u-OS device (default: `127.0.0.1` for local Node-RED).
@@ -136,31 +113,16 @@ The **u-OS API** node provides a unified HTTP interface for both DataHub Variabl
 
 ---
 
-## Performance & Reliability
-- **High-Speed Decoding (Filter-on-Decode):** The node now intelligently filters incoming data at the byte-level. Even if a provider sends thousands of variables, Node-RED only decodes the ones you have selected. This massively reduces CPU usage.
-- **Large Buffers:** The internal NATS buffer has been increased (10MB) to handle event bursts (e.g. rapid switching).
-- **Slow Consumer Warning:** If Node-RED cannot keep up, a "SLOW CONSUMER" warning will appear in the debug log to alert you of dropped messages.
-
-## UI Features
-- **Grouped Variables:** Variables are automatically grouped by folder (prefix) in the selection list (e.g. `ur20._4com...`).
-- **Smart Filtering:** 
-    - **Read Node** shows all variables.
-    - **Write Node** automatically hides Read-Only variables to prevent errors.
+## Performance & Optimization
+- **HTTPS Agent:** Secure connection handling (no global TLS override).
+- **Chunking:** Large variable lists are split into 100-item chunks for reliable reading.
+- **Filter-on-Decode:** High-speed filtering at the byte-level to save CPU.
 
 ## Troubleshooting
 
-- **Provider not visible?** Ensure **Provider ID** matches your **Client ID**. Easiest way: Leave Provider ID empty in the node.
-- **Node Status is Green (Ring)?**
-  - `waiting for provider`: The node is connected to NATS (OK), but the target Provider (e.g. `u_os_sbm`) is currently offline. It will resume automatically.
-- **Node Status is Yellow?**
-  - `cooldown (10s)`: The node is pausing after an error to protect the network.
-  - `auth failed`: OAuth credentials generated an error. Check Client Secret.
-- **Node Status is Red?**
-  - `illegal ID`: You used a reserved name like `u_os_sbm`. Rename your Client/Provider.
-  - `write error`: A command failed. Check Scopes (`hub.variables.readwrite`) or Fingerprint.
-- **Variable ID "undefined" or "ERR"?** 
-  - The ID column is hidden by default to avoid confusion. The node handles ID resolution automatically.
-  - If a variable fails, check if the Key (name) is correct on the Data Hub.
+- **Provider not visible?** Check Client ID and Scopes.
+- **Status "cooldown"?** The node is pausing after an error to protect the network.
+- **Status "illegal ID"?** You used a reserved name. Use `nodered` or similar.
 - **Write not working?** Ensure your OAuth client has `hub.variables.readwrite` scope.
 - **Debug:** Check the Node-RED "Debug" sidebar for error messages.
 
