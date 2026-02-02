@@ -219,6 +219,8 @@ module.exports = function (RED) {
           // Sanitize clientName for Inbox usage (Strict NATS subjects)
           const safeClientName = this.clientName.replace(/[^a-zA-Z0-9_-]/g, '_');
 
+          this.log(`Attempting NATS connection to nats://${this.host}:${this.port} ...`);
+
           this.nc = await connect({
             servers: `nats://${this.host}:${this.port}`,
             // Authenticator must be SYNCHRONOUS. We rely on background refresh to keep this.tokenInfo current.
@@ -520,7 +522,7 @@ module.exports = function (RED) {
       };
 
       const tryFetch = async (url) => {
-        const res = await fetch(url, { headers });
+        const res = await fetch(url, { headers, agent: httpsAgent });
         if (!res.ok) {
           if (res.status === 404) return null;
           // Don't throw yet, legitimate for fallback logic
@@ -813,6 +815,7 @@ module.exports = function (RED) {
           Accept: 'application/json',
         },
         body: params,
+        agent: httpsAgent
       });
 
       if (!tokenRes.ok) {
@@ -824,7 +827,7 @@ module.exports = function (RED) {
       // 2. Fetch Providers (API Check)
       // Try fallback logic similar to instance method
       const tryFetch = async (url) => {
-        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, agent: httpsAgent });
         if (!r.ok && r.status !== 404) throw new Error(`API ${r.status}`);
         return r.ok ? r : null;
       };

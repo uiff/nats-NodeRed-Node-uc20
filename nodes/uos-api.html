@@ -150,54 +150,146 @@
                 if (!provider) { RED.notify("Please enter a Provider ID first.", "error"); return; }
 
                 var $btn = $(this); $btn.prop('disabled', true);
-                var $container = $("#var-browser-container");
-                var $list = $("#var-select-list");
 
+                // --- UI Logic (Checkbox Version) ---
+                var $container = $("#var-browser-container");
+                var $list = $("#var-select-list"); // Hidden select for legacy compat if needed
+
+                // Ensure functionality DOM exists
+                if ($("#var-checkbox-list").length === 0) {
+                    $list.hide();
+                    $list.after('<div id="var-checkbox-list" style="border:1px solid #ccc; height:250px; overflow-y:auto; background:#fff;"></div>');
+
+                    // Header Controls
+                    $("#var-checkbox-list").before(
+                        '<div style="margin-bottom:5px; display:flex;">' +
+                        '<input type="text" id="var-filter-input" placeholder="Filter..." style="flex:1; margin-right:5px;">' +
+                        '<button id="btn-select-all" class="red-ui-button red-ui-button-small">All</button>' +
+                        '<button id="btn-clear-all" class="red-ui-button red-ui-button-small" style="margin-left:2px;">None</button>' +
+                        '</div>'
+                    );
+
+                    // Footer Controls
+                    $("#var-checkbox-list").after(
+                        '<div style="margin-top:5px; text-align:right;">' +
+                        '<button id="btn-confirm-vars" class="red-ui-button red-ui-button-small">Apply Selected</button>' +
+                        '</div>'
+                    );
+                }
+                var $cbList = $("#var-checkbox-list");
                 $container.show();
-                $list.html('<option>Loading...</option>');
+                $cbList.html('<div style="padding:10px; text-align:center;"><i class="fa fa-spinner fa-spin"></i> Loading...</div>');
 
                 $.getJSON('uos-api/variables/' + configId + '/' + provider, function (data) {
                     $btn.prop('disabled', false);
-                    $list.empty();
+                    $cbList.empty();
 
-                    if (data.length === 0) {
-                        $list.append('<option disabled>No variables found</option>');
+                    if (!Array.isArray(data) || data.length === 0) {
+                        $cbList.html('<div style="padding:10px; color:#777; text-align:center;">No variables found.</div>');
                         return;
                     }
 
                     // Sort
                     data.sort((a, b) => a.key.localeCompare(b.key));
 
+                    // Grouping
+                    var groups = {};
+                    var noGroup = [];
+
                     data.forEach(v => {
-                        $list.append($("<option>", { value: v.key, text: v.key }));
+                        var parts = v.key.split('.');
+                        if (parts.length > 1) {
+                            var g = parts[0];
+                            if (!groups[g]) groups[g] = [];
+                            groups[g].push(v);
+                        } else {
+                            noGroup.push(v);
+                        }
                     });
 
-                    // Add a helper text/button to confirm selection
-                    if ($("#btn-confirm-vars").length === 0) {
-                        $container.append('<div style="margin-top:5px; text-align:right;"><small>Hold Ctrl for multi-select</small> <button id="btn-confirm-vars" class="red-ui-button red-ui-button-small">Apply Selected</button></div>');
+                    // Row Creator
+                    function createRow(v) {
+                        var div = $('<div>', { style: "display:grid; grid-template-columns: 30px 1fr; align-items:center; padding:4px 0; border-bottom:1px solid #eee; font-family:'Helvetica Neue', Arial, sans-serif; font-size:12px;" });
+                        var cb = $('<input type="checkbox" class="var-checkbox">').data('key', v.key);
+                        var label = $('<div>', { style: "overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:10px;", title: v.key }).text(v.key);
 
-                        $("#btn-confirm-vars").click(function (e) {
-                            e.preventDefault();
-                            var selected = $list.val(); // Returns array for multiple select
-                            if (selected && selected.length > 0) {
-                                $("#node-input-dhVariable").val(selected.join(', '));
-                                $container.hide();
-                            }
-                        });
+                        // Check if currently selected
+                        var currentVal = $("#node-input-dhVariable").val();
+                        if (currentVal && currentVal.indexOf(v.key) !== -1) {
+                            cb.prop('checked', true);
+                        }
+
+                        div.append($('<div style="text-align:center;">').append(cb)).append(label);
+
+                        if (v.missingId) {
+                            cb.prop('disabled', true);
+                            div.css('opacity', 0.5);
+                            label.append(' <small>(Read-Only / No ID)</small>');
+                        }
+
+                        return div;
                     }
 
-                    // Filter Logic (refined for options)
-                    $("#var-filter").off("keyup").on("keyup", function () {
-                        var val = $(this).val().toLowerCase();
-                        $list.find("option").each(function () {
-                            var text = $(this).text().toLowerCase();
-                            $(this).toggle(text.indexOf(val) > -1);
+                    // Render Groups
+                    Object.keys(groups).sort().forEach(g => {
+                        var header = $('<div>', { style: 'background:#eee; padding:5px 10px; font-weight:bold; cursor:pointer; border-bottom:1px solid #ddd; display:flex; align-items:center;' });
+                        var icon = $('<i class="fa fa-caret-right" style="margin-right:5px; width:10px;"></i>');
+                        header.append(icon).append($('<span>').text(g + ' (' + groups[g].length + ')'));
+
+                        var itemContainer = $('<div>', { style: 'display:none;' });
+                        groups[g].forEach(v => { itemContainer.append(createRow(v)); });
+
+                        header.click(function () {
+                            var visible = itemContainer.is(':visible');
+                            itemContainer.toggle(!visible);
+                            icon.removeClass(visible ? 'fa-caret-down' : 'fa-caret-right').addClass(visible ? 'fa-caret-right' : 'fa-caret-down');
                         });
+                        $cbList.append(header).append(itemContainer);
+                    });
+
+                    // Render Ungrouped
+                    if (noGroup.length > 0) {
+                        var header = $('<div>', { style: 'background:#eee; padding:5px 10px; font-weight:bold; color:#666;' }).text('General');
+                        $cbList.append(header);
+                        noGroup.forEach(v => { $cbList.append(createRow(v)); });
+                    }
+
+                    // Handlers
+                    $("#var-filter-input").off("keyup").on("keyup", function () {
+                        var val = $(this).val().toLowerCase();
+                        $cbList.find('.var-checkbox').each(function () {
+                            var row = $(this).closest('div[style*="grid"]');
+                            var text = $(this).data('key').toLowerCase();
+                            var match = text.indexOf(val) > -1;
+                            row.toggle(match);
+                            if (match) {
+                                row.parent().show();
+                                row.parent().prev().find('.fa').removeClass('fa-caret-right').addClass('fa-caret-down');
+                            }
+                        });
+                    });
+
+                    $("#btn-select-all").off("click").click(function () { $cbList.find('.var-checkbox:visible:not(:disabled)').prop('checked', true); });
+                    $("#btn-clear-all").off("click").click(function () { $cbList.find('.var-checkbox:visible').prop('checked', false); });
+
+                    $("#btn-confirm-vars").off("click").click(function (e) {
+                        e.preventDefault();
+                        var selected = [];
+                        $cbList.find('.var-checkbox:checked').each(function () {
+                            selected.push($(this).data('key'));
+                        });
+
+                        if (selected.length > 0) {
+                            $("#node-input-dhVariable").val(selected.join(', '));
+                            $container.hide();
+                        } else {
+                            RED.notify("No variable selected", "warning");
+                        }
                     });
 
                 }).fail(function (jqxhr) {
                     $btn.prop('disabled', false);
-                    $container.hide();
+                    $cbList.html('<div style="color:red; padding:10px">Failed to load: ' + (jqxhr.responseJSON?.error || "Unknown") + '</div>');
                     RED.notify("Failed to load variables: " + (jqxhr.responseJSON?.error || "Unknown"), "error");
                 });
             });
