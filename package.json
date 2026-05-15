@@ -67,7 +67,8 @@
   },
   "devDependencies": {
     "chai": "^4.3.10",
+    "dotenv": "^17.2.3",
     "mocha": "^10.2.0",
-    "dotenv": "^17.2.3"
+    "tailwindcss": "^4.3.0"
   }
 }
