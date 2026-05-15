@@ -4,64 +4,144 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI-Ueli – Lokale KI für Schweizer KMUs | IoTUeli</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
   <style>
-    *, *::before, *::after { font-family: 'Inter', system-ui, sans-serif; }
-
-    html { background-color: #0b0d12; }
-
-    body {
-      background-color: #0b0d12;
-      color: #e2e8f0;
-      overflow-x: hidden;
+    /* ═══════════════════════════════════════
+       BASE
+    ═══════════════════════════════════════ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
-    /* ── Animated glow orbs ── */
-    .glow-orb {
+    :root {
+      --bg:           #0b0d12;
+      --bg-card:      rgba(255,255,255,0.035);
+      --bg-card-hover:rgba(124,58,237,0.08);
+      --border:       rgba(255,255,255,0.07);
+      --border-v:     rgba(167,139,250,0.18);
+      --border-v-hi:  rgba(167,139,250,0.45);
+      --border-e:     rgba(52,211,153,0.28);
+
+      --text:         #e2e8f0;
+      --text-muted:   #94a3b8;
+      --text-dim:     #475569;
+
+      --violet:       #7c3aed;
+      --violet-mid:   #8b5cf6;
+      --violet-light: #a78bfa;
+      --violet-pale:  #c4b5fd;
+
+      --emerald:      #059669;
+      --emerald-mid:  #10b981;
+      --emerald-light:#34d399;
+
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "SF Mono", "Fira Code", monospace;
+
+      --radius-sm: 10px;
+      --radius:    16px;
+      --radius-lg: 24px;
+      --radius-xl: 32px;
+
+      --shadow-card: 0 0 35px rgba(124,58,237,0.18), 0 24px 48px rgba(0,0,0,0.35);
+      --shadow-btn:  0 0 35px rgba(124,58,237,0.48), 0 12px 32px rgba(0,0,0,0.3);
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { text-decoration: none; color: inherit; }
+    img { display: block; max-width: 100%; }
+
+    /* ═══════════════════════════════════════
+       LAYOUT HELPERS
+    ═══════════════════════════════════════ */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .container--narrow { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .container--mid    { max-width: 750px; margin: 0 auto; padding: 0 24px; }
+
+    .flex        { display: flex; }
+    .flex-center { display: flex; align-items: center; justify-content: center; }
+    .flex-between{ display: flex; align-items: center; justify-content: space-between; }
+    .flex-col    { display: flex; flex-direction: column; }
+    .gap-2  { gap: 8px;  }
+    .gap-3  { gap: 12px; }
+    .gap-4  { gap: 16px; }
+    .gap-6  { gap: 24px; }
+
+    .text-center { text-align: center; }
+
+    /* ═══════════════════════════════════════
+       ANIMATED GLOW ORBS
+    ═══════════════════════════════════════ */
+    .orbs {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .orb {
       position: absolute;
       border-radius: 50%;
       filter: blur(90px);
-      opacity: 0.13;
+      opacity: .12;
       will-change: transform;
-      animation: orb-drift 24s ease-in-out infinite;
+      animation: orb-drift 26s ease-in-out infinite;
     }
-    .orb-violet {
+    .orb--violet {
       width: 700px; height: 700px;
       background: radial-gradient(circle, #7c3aed 0%, transparent 70%);
-      top: -220px; left: -120px;
+      top: -220px; left: -100px;
       animation-delay: 0s;
     }
-    .orb-emerald {
+    .orb--emerald {
       width: 450px; height: 450px;
       background: radial-gradient(circle, #059669 0%, transparent 70%);
-      top: 80px; right: -80px;
-      animation-delay: -8s;
+      top: 60px; right: -100px;
+      animation-delay: -9s;
     }
-    .orb-indigo {
-      width: 550px; height: 550px;
+    .orb--indigo {
+      width: 580px; height: 580px;
       background: radial-gradient(circle, #4f46e5 0%, transparent 70%);
-      bottom: -120px; left: 35%;
-      animation-delay: -16s;
+      bottom: -130px; left: 32%;
+      animation-delay: -18s;
     }
     @keyframes orb-drift {
       0%,100% { transform: translate(0,0) scale(1); }
-      33%      { transform: translate(40px,-40px) scale(1.06); }
-      66%      { transform: translate(-25px, 25px) scale(0.94); }
+      33%      { transform: translate(40px,-45px) scale(1.07); }
+      66%      { transform: translate(-28px, 28px) scale(0.93); }
     }
 
-    /* ── Grid overlay ── */
+    /* ═══════════════════════════════════════
+       GRID BG
+    ═══════════════════════════════════════ */
     .grid-bg {
       background-image:
-        linear-gradient(rgba(167,139,250,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(167,139,250,0.025) 1px, transparent 1px);
+        linear-gradient(rgba(167,139,250,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(167,139,250,.025) 1px, transparent 1px);
       background-size: 64px 64px;
     }
 
-    /* ── Gradient text ── */
+    /* ═══════════════════════════════════════
+       TYPOGRAPHY
+    ═══════════════════════════════════════ */
     .gradient-text {
       background: linear-gradient(135deg, #a78bfa 0%, #c4b5fd 45%, #34d399 100%);
       -webkit-background-clip: text;
@@ -69,257 +149,816 @@
       background-clip: text;
     }
 
-    /* ── Typing cursor ── */
+    h1, h2, h3 { font-weight: 900; line-height: 1.08; letter-spacing: -.025em; }
+
+    .display-1 { font-size: clamp(42px, 7vw, 80px); }
+    .display-2 { font-size: clamp(32px, 4.5vw, 52px); }
+    .display-3 { font-size: clamp(18px, 2.5vw, 22px); }
+    .label     { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+
+    /* ═══════════════════════════════════════
+       BADGES
+    ═══════════════════════════════════════ */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .badge--violet {
+      background: linear-gradient(135deg, rgba(124,58,237,.18), rgba(167,139,250,.04));
+      border: 1px solid var(--border-v);
+      color: var(--violet-pale);
+    }
+    .badge--emerald {
+      background: linear-gradient(135deg, rgba(16,185,129,.15), rgba(52,211,153,.04));
+      border: 1px solid var(--border-e);
+      color: var(--emerald-light);
+    }
+
+    /* ═══════════════════════════════════════
+       PULSE DOT
+    ═══════════════════════════════════════ */
+    .pulse-dot {
+      position: relative;
+      display: inline-flex;
+      width: 8px; height: 8px;
+      flex-shrink: 0;
+    }
+    .pulse-dot__ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--emerald-light);
+      opacity: .75;
+      animation: pulse-ring 2s ease-out infinite;
+    }
+    .pulse-dot__core {
+      position: relative;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--emerald-mid);
+    }
+    @keyframes pulse-ring {
+      0%   { transform: scale(.8);  opacity: .8; }
+      100% { transform: scale(1.7); opacity: 0;  }
+    }
+
+    /* ═══════════════════════════════════════
+       TYPING CURSOR
+    ═══════════════════════════════════════ */
     .typing-cursor {
       display: inline-block;
-      width: 2.5px;
-      height: 1.1em;
-      background: #a78bfa;
+      width: 2.5px; height: 1.1em;
+      background: var(--violet-light);
       margin-left: 3px;
       vertical-align: text-bottom;
-      border-radius: 1px;
-      animation: cursor-blink 0.75s step-end infinite;
+      border-radius: 2px;
+      animation: blink .75s step-end infinite;
     }
-    @keyframes cursor-blink {
+    @keyframes blink {
       0%,100% { opacity: 1; }
       50%      { opacity: 0; }
     }
 
-    /* ── Navbar ── */
-    .navbar {
-      background: rgba(11,13,18,0.75);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid rgba(255,255,255,0.055);
-      transition: border-color 0.3s ease;
-    }
-    .navbar.scrolled { border-bottom-color: rgba(124,58,237,0.2); }
-
-    /* ── Badges ── */
-    .badge-violet {
-      background: linear-gradient(135deg, rgba(124,58,237,0.18), rgba(167,139,250,0.04));
-      border: 1px solid rgba(167,139,250,0.28);
-      color: #c4b5fd;
-    }
-    .badge-emerald {
-      background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(52,211,153,0.04));
-      border: 1px solid rgba(52,211,153,0.28);
-      color: #34d399;
-    }
-
-    /* ── Pulse dot ── */
-    @keyframes pulse-ring {
-      0%   { transform: scale(0.75); opacity: 0.9; }
-      100% { transform: scale(1.6);  opacity: 0; }
-    }
-    .pulse-ring { animation: pulse-ring 2s ease-out infinite; }
-
-    /* ── Feature cards ── */
-    .feature-card {
-      background: linear-gradient(135deg, rgba(255,255,255,0.038) 0%, rgba(255,255,255,0.01) 100%);
-      border: 1px solid rgba(167,139,250,0.12);
-      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-    .feature-card:hover {
-      transform: translateY(-5px) scale(1.015);
-      border-color: rgba(167,139,250,0.38);
-      box-shadow: 0 0 35px rgba(124,58,237,0.18), 0 24px 48px rgba(0,0,0,0.35);
-    }
-
-    /* ── Brand cards ── */
-    .brand-active {
-      background: linear-gradient(135deg, rgba(124,58,237,0.13) 0%, rgba(167,139,250,0.04) 100%);
-      border: 1px solid rgba(167,139,250,0.28);
-      transition: border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-    .brand-active:hover {
-      border-color: rgba(167,139,250,0.55);
-      box-shadow: 0 0 45px rgba(124,58,237,0.22);
-    }
-    .brand-disabled {
-      background: rgba(255,255,255,0.018);
-      border: 1px solid rgba(255,255,255,0.06);
-      opacity: 0.45;
-    }
-
-    /* ── CTA button ── */
+    /* ═══════════════════════════════════════
+       BUTTONS
+    ═══════════════════════════════════════ */
     .btn-primary {
-      background: linear-gradient(135deg, #7c3aed, #6d28d9);
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 15px 32px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--violet), #6d28d9);
+      color: #fff;
+      font-weight: 700;
+      font-size: 17px;
+      font-family: var(--font);
+      border: none;
+      cursor: pointer;
       position: relative;
       overflow: hidden;
+      transition: transform .25s ease, box-shadow .25s ease;
     }
     .btn-primary::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.1), transparent);
       transform: translateX(-100%);
-      transition: transform 0.55s ease;
+      transition: transform .55s ease;
     }
     .btn-primary:hover::after  { transform: translateX(100%); }
     .btn-primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 0 35px rgba(124,58,237,0.48), 0 12px 32px rgba(0,0,0,0.3);
+      box-shadow: var(--shadow-btn);
     }
 
-    /* ── Section divider ── */
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 15px 32px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,.12);
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 17px;
+      font-family: var(--font);
+      background: transparent;
+      cursor: pointer;
+      transition: color .2s, border-color .2s;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,.3); }
+
+    /* ═══════════════════════════════════════
+       DIVIDER
+    ═══════════════════════════════════════ */
     .divider {
       height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(167,139,250,0.28), transparent);
+      background: linear-gradient(90deg, transparent, rgba(167,139,250,.28), transparent);
     }
 
-    /* ── Scroll reveal ── */
+    /* ═══════════════════════════════════════
+       SCROLL REVEAL
+    ═══════════════════════════════════════ */
     .reveal {
       opacity: 0;
       transform: translateY(32px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
+      transition: opacity .7s ease, transform .7s ease;
     }
     .reveal.visible {
       opacity: 1;
       transform: translateY(0);
     }
 
-    /* ── Tech stack row ── */
+    /* ═══════════════════════════════════════
+       NAVBAR
+    ═══════════════════════════════════════ */
+    .navbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(11,13,18,.78);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,.055);
+      transition: border-color .3s;
+    }
+    .navbar.scrolled { border-bottom-color: rgba(124,58,237,.22); }
+    .navbar__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-logo__icon {
+      position: relative;
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #8b5cf6, #5b21b6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(124,58,237,.4);
+      flex-shrink: 0;
+    }
+    .nav-logo__icon span { color: #fff; font-weight: 900; font-size: 11px; letter-spacing: -.5px; }
+    .nav-logo__dot {
+      position: absolute;
+      bottom: -2px; right: -2px;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--emerald-mid);
+      border: 2px solid var(--bg);
+    }
+    .nav-logo__text { line-height: 1.2; }
+    .nav-logo__name { font-weight: 800; font-size: 16px; color: #fff; letter-spacing: -.02em; }
+    .nav-logo__sub  { font-size: 10px; color: var(--text-dim); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      padding: 9px 20px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .nav-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 4px;
+    }
+    .nav-hamburger:hover { color: var(--text); }
+
+    .nav-mobile {
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 24px 16px;
+      border-top: 1px solid rgba(255,255,255,.06);
+    }
+    .nav-mobile.open { display: flex; }
+    .nav-mobile a {
+      display: block;
+      padding: 10px 0;
+      font-size: 15px;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      transition: color .2s;
+    }
+    .nav-mobile a:hover { color: var(--text); }
+    .nav-mobile .btn-primary { margin-top: 8px; width: 100%; }
+
+    @media (max-width: 768px) {
+      .nav-links, .nav-cta { display: none !important; }
+      .nav-hamburger { display: block; }
+    }
+
+    /* ═══════════════════════════════════════
+       HERO
+    ═══════════════════════════════════════ */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 120px 24px 80px;
+      overflow: hidden;
+    }
+    .hero__content {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .hero__badge { margin-bottom: 28px; }
+    .hero__headline {
+      color: #fff;
+      margin-bottom: 18px;
+    }
+    .hero__typing-row {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .hero__typing {
+      font-size: clamp(18px, 2.5vw, 24px);
+      font-weight: 600;
+      color: var(--violet-light);
+    }
+    .hero__desc {
+      color: var(--text-muted);
+      font-size: clamp(16px, 2vw, 19px);
+      max-width: 620px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+    .hero__ctas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      justify-content: center;
+      margin-bottom: 52px;
+    }
+    .hero__trust {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .trust-item svg { color: var(--emerald-mid); flex-shrink: 0; }
+
+    .hero__scroll {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--text-dim);
+      animation: bounce 2s ease-in-out infinite;
+    }
+    @keyframes bounce {
+      0%,100% { transform: translateX(-50%) translateY(0); }
+      50%      { transform: translateX(-50%) translateY(6px); }
+    }
+
+    /* ═══════════════════════════════════════
+       SECTION SHELL
+    ═══════════════════════════════════════ */
+    .section { padding: 96px 0; position: relative; }
+    .section__header { text-align: center; margin-bottom: 60px; }
+    .section__badge  { margin-bottom: 14px; }
+    .section__title  { color: #fff; margin-bottom: 14px; }
+    .section__sub {
+      color: var(--text-muted);
+      font-size: 17px;
+      max-width: 580px;
+      margin: 0 auto;
+      font-weight: 400;
+    }
+
+    /* ═══════════════════════════════════════
+       FEATURE GRID
+    ═══════════════════════════════════════ */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 580px) { .feature-grid { grid-template-columns: 1fr; } }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-v);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      transition: transform .3s, border-color .3s, box-shadow .3s, background .3s;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px) scale(1.015);
+      border-color: var(--border-v-hi);
+      background: var(--bg-card-hover);
+      box-shadow: var(--shadow-card);
+    }
+    .feature-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+    .feature-icon--violet { background: rgba(124,58,237,.22); border: 1px solid rgba(124,58,237,.3); }
+    .feature-icon--emerald{ background: rgba(5,150,105,.18);  border: 1px solid rgba(5,150,105,.3);  }
+    .feature-icon svg { width: 22px; height: 22px; }
+    .feature-icon--violet svg { color: var(--violet-light); }
+    .feature-icon--emerald svg { color: var(--emerald-light); }
+    .feature-title { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+    .feature-text  { font-size: 14px; color: var(--text-muted); line-height: 1.65; }
+    .feature-text strong { color: var(--violet-light); font-weight: 500; }
+    .feature-text em     { color: var(--emerald-light); font-style: normal; font-weight: 500; }
+
+    /* ═══════════════════════════════════════
+       TECH SECTION
+    ═══════════════════════════════════════ */
+    .tech-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+    @media (max-width: 900px) {
+      .tech-layout { grid-template-columns: 1fr; gap: 40px; }
+    }
+
+    .tech-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
     .tech-row {
-      background: rgba(255,255,255,0.028);
-      border: 1px solid rgba(255,255,255,0.06);
-      transition: border-color 0.25s ease, background 0.25s ease;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: var(--radius-sm);
+      background: rgba(255,255,255,.025);
+      border: 1px solid rgba(255,255,255,.06);
+      transition: background .25s, border-color .25s;
     }
     .tech-row:hover {
-      background: rgba(124,58,237,0.08);
-      border-color: rgba(167,139,250,0.2);
+      background: rgba(124,58,237,.08);
+      border-color: rgba(167,139,250,.2);
     }
+    .tech-pill {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: -.5px;
+    }
+    .tech-pill--violet { background: rgba(124,58,237,.3); color: var(--violet-light); }
+    .tech-pill--emerald{ background: rgba(5,150,105,.25); color: var(--emerald-light); }
+    .tech-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .tech-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+    /* Data flow diagram */
+    .dataflow {
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, rgba(255,255,255,.035), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.07);
+    }
+    .dataflow__title {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+    }
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(124,58,237,.12);
+      border: 1px solid rgba(124,58,237,.18);
+    }
+    .flow-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: rgba(124,58,237,.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .flow-icon svg { width: 15px; height: 15px; color: var(--violet-pale); }
+    .flow-label { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; }
+    .flow-tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(124,58,237,.25);
+      color: var(--violet-light);
+      font-weight: 600;
+    }
+    .flow-arrow {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 20px;
+      padding: 4px 0;
+    }
+    .flow-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .flow-box {
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.07);
+    }
+    .flow-box__label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--violet-light);
+      margin-bottom: 4px;
+    }
+    .flow-box__sub { font-size: 11px; color: var(--text-dim); }
+    .flow-nocloud {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(5,150,105,.12);
+      border: 1px solid rgba(5,150,105,.25);
+      margin-top: 10px;
+    }
+    .flow-nocloud svg { width: 18px; height: 18px; color: var(--emerald-light); flex-shrink: 0; }
+    .flow-nocloud__title { font-size: 13px; font-weight: 600; color: var(--emerald-light); }
+    .flow-nocloud__sub   { font-size: 11px; color: var(--text-dim); }
+
+    /* ═══════════════════════════════════════
+       BRAND GRID
+    ═══════════════════════════════════════ */
+    .brand-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    @media (max-width: 680px) { .brand-grid { grid-template-columns: 1fr; } }
+
+    .brand-card {
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .brand-card--active {
+      background: linear-gradient(135deg, rgba(124,58,237,.13), rgba(167,139,250,.04));
+      border: 1px solid rgba(167,139,250,.28);
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .brand-card--active:hover {
+      border-color: rgba(167,139,250,.55);
+      box-shadow: 0 0 45px rgba(124,58,237,.22);
+    }
+    .brand-card--disabled {
+      background: rgba(255,255,255,.018);
+      border: 1px solid rgba(255,255,255,.06);
+      opacity: .42;
+    }
+    .brand-card__glow {
+      position: absolute;
+      top: -30px; right: -30px;
+      width: 130px; height: 130px;
+      border-radius: 50%;
+      background: rgba(124,58,237,.1);
+      filter: blur(30px);
+      pointer-events: none;
+    }
+    .brand-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: -.5px;
+    }
+    .brand-icon--active   { background: linear-gradient(135deg, #8b5cf6, #5b21b6); color: #fff; box-shadow: 0 4px 14px rgba(124,58,237,.4); }
+    .brand-icon--disabled { background: rgba(255,255,255,.08); color: #475569; }
+    .brand-icon--iot      { background: linear-gradient(135deg, #059669, #065f46); color: #fff; }
+    .brand-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .brand-name { font-size: 20px; font-weight: 800; }
+    .brand-name--active   { color: #fff; }
+    .brand-name--disabled { color: #475569; }
+    .brand-status {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 100px;
+    }
+    .brand-status--active {
+      background: rgba(16,185,129,.15);
+      color: var(--emerald-light);
+      border: 1px solid rgba(16,185,129,.3);
+    }
+    .brand-status--soon {
+      background: rgba(255,255,255,.06);
+      color: #475569;
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .brand-text { font-size: 13px; line-height: 1.6; margin-bottom: 16px; }
+    .brand-text--active   { color: var(--text-muted); }
+    .brand-text--disabled { color: #334155; }
+    .brand-link { font-size: 13px; font-weight: 600; color: var(--violet-light); transition: color .2s; }
+    .brand-link:hover { color: var(--violet-pale); }
+    .brand-soon { font-size: 13px; font-weight: 500; color: #334155; }
+
+    .brand-parent {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 24px;
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.07);
+      margin: 36px auto 0;
+      font-size: 14px;
+    }
+    .brand-parent__icon {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #059669, #065f46);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 900;
+      color: #fff;
+    }
+    .brand-parent__text { color: var(--text-dim); }
+    .brand-parent__name { color: var(--emerald-light); font-weight: 600; }
+
+    /* ═══════════════════════════════════════
+       CTA SECTION
+    ═══════════════════════════════════════ */
+    .cta-section {
+      padding: 112px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-glow {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .cta-glow__orb {
+      width: 700px; height: 350px;
+      background: rgba(124,58,237,.07);
+      border-radius: 50%;
+      filter: blur(60px);
+    }
+    .cta-content { position: relative; z-index: 2; text-align: center; }
+    .cta-headline { color: #fff; margin: 20px 0; line-height: 1.1; }
+    .cta-desc {
+      color: var(--text-muted);
+      font-size: clamp(16px, 2vw, 19px);
+      max-width: 600px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+    .cta-box {
+      padding: 36px 40px;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, rgba(255,255,255,.038), rgba(255,255,255,.01));
+      border: 1px solid rgba(124,58,237,.18);
+      margin-bottom: 20px;
+    }
+    .cta-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 28px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    @media (max-width: 580px) { .cta-metrics { grid-template-columns: 1fr; } }
+    .metric-num { font-size: 32px; font-weight: 900; color: #fff; letter-spacing: -.03em; }
+    .metric-sub { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+    .cta-fine { font-size: 13px; color: var(--text-dim); }
+
+    /* ═══════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════ */
+    .footer {
+      border-top: 1px solid rgba(255,255,255,.06);
+      padding: 36px 0;
+    }
+    .footer__inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .footer__brand { display: flex; align-items: center; gap: 12px; }
+    .footer__icon {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #8b5cf6, #5b21b6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 900;
+      color: #fff;
+    }
+    .footer__name { font-weight: 600; color: var(--text-muted); font-size: 14px; }
+    .footer__name strong { color: rgba(255,255,255,.7); }
+    .footer__links { display: flex; align-items: center; gap: 24px; }
+    .footer__links a { font-size: 13px; color: var(--text-dim); transition: color .2s; }
+    .footer__links a:hover { color: var(--text-muted); }
+    .footer__copy { font-size: 13px; color: var(--text-dim); }
   </style>
 </head>
 
-<body class="antialiased">
+<body>
 
-  <!-- ════════════════════════════════════════
-       NAVBAR
-  ════════════════════════════════════════ -->
-  <nav class="navbar fixed top-0 left-0 right-0 z-50" id="navbar">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-
-      <!-- Logo -->
-      <a href="#" class="flex items-center gap-3">
-        <div class="relative">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-violet-800 flex items-center justify-center shadow-lg">
-            <span class="text-white font-black text-[11px] tracking-tight">AI</span>
-          </div>
-          <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#0b0d12]"></div>
+  <!-- ════════════════════ NAVBAR ════════════════════ -->
+  <nav class="navbar" id="navbar">
+    <div class="navbar__inner">
+      <a href="#" class="nav-logo">
+        <div class="nav-logo__icon">
+          <span>AI</span>
+          <div class="nav-logo__dot"></div>
         </div>
-        <div class="leading-tight">
-          <div class="text-white font-bold text-[17px] tracking-tight">AI-Ueli</div>
-          <div class="text-slate-600 text-[10px] leading-none hidden sm:block">by IoTUeli · iotueli.ch</div>
+        <div class="nav-logo__text">
+          <div class="nav-logo__name">AI-Ueli</div>
+          <div class="nav-logo__sub">by IoTUeli · iotueli.ch</div>
         </div>
       </a>
 
-      <!-- Desktop links -->
-      <div class="hidden md:flex items-center gap-8">
-        <a href="#leistungen"  class="text-slate-400 hover:text-white text-sm font-medium transition-colors">Leistungen</a>
-        <a href="#technologie" class="text-slate-400 hover:text-white text-sm font-medium transition-colors">Technologie</a>
-        <a href="#oekosystem"  class="text-slate-400 hover:text-white text-sm font-medium transition-colors">Ökosystem</a>
-        <a href="#kontakt" class="btn-primary text-white text-sm font-semibold px-5 py-2.5 rounded-xl">
-          Kontakt aufnehmen
-        </a>
-      </div>
+      <ul class="nav-links">
+        <li><a href="#leistungen">Leistungen</a></li>
+        <li><a href="#technologie">Technologie</a></li>
+        <li><a href="#oekosystem">Ökosystem</a></li>
+      </ul>
 
-      <!-- Mobile hamburger -->
-      <button id="mobile-menu-btn" class="md:hidden text-slate-400 hover:text-white p-1" aria-label="Menü öffnen">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+      <a href="#kontakt" class="btn-primary nav-cta">Kontakt aufnehmen</a>
+
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Menü öffnen">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
       </button>
     </div>
-
-    <!-- Mobile menu -->
-    <div id="mobile-menu" class="hidden md:hidden border-t border-slate-800/50 px-6 py-4 space-y-3">
-      <a href="#leistungen"  class="block text-slate-400 hover:text-white text-sm py-2 transition-colors">Leistungen</a>
-      <a href="#technologie" class="block text-slate-400 hover:text-white text-sm py-2 transition-colors">Technologie</a>
-      <a href="#oekosystem"  class="block text-slate-400 hover:text-white text-sm py-2 transition-colors">Ökosystem</a>
-      <a href="#kontakt" class="btn-primary block text-center text-white text-sm font-semibold px-5 py-3 rounded-xl mt-2">
-        Kontakt aufnehmen
-      </a>
+    <div class="nav-mobile" id="nav-mobile">
+      <a href="#leistungen">Leistungen</a>
+      <a href="#technologie">Technologie</a>
+      <a href="#oekosystem">Ökosystem</a>
+      <a href="#kontakt" class="btn-primary">Kontakt aufnehmen</a>
     </div>
   </nav>
 
 
-  <!-- ════════════════════════════════════════
-       HERO
-  ════════════════════════════════════════ -->
-  <section class="relative min-h-screen flex items-center justify-center pt-24 pb-16 overflow-hidden grid-bg">
-
-    <!-- Glow orbs -->
-    <div class="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-      <div class="glow-orb orb-violet"></div>
-      <div class="glow-orb orb-emerald"></div>
-      <div class="glow-orb orb-indigo"></div>
+  <!-- ════════════════════ HERO ════════════════════ -->
+  <section class="hero grid-bg">
+    <div class="orbs" aria-hidden="true">
+      <div class="orb orb--violet"></div>
+      <div class="orb orb--emerald"></div>
+      <div class="orb orb--indigo"></div>
     </div>
 
-    <div class="relative z-10 max-w-5xl mx-auto px-6 text-center">
-
-      <!-- Live badge -->
-      <div class="inline-flex items-center gap-2 badge-emerald px-4 py-1.5 rounded-full text-sm font-medium mb-8">
-        <span class="relative flex h-2 w-2" aria-hidden="true">
-          <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+    <div class="hero__content">
+      <div class="hero__badge">
+        <span class="badge badge--emerald">
+          <span class="pulse-dot"><span class="pulse-dot__ring"></span><span class="pulse-dot__core"></span></span>
+          Schweizer KI-Lösungen · 100% lokal · 100% privat
         </span>
-        Schweizer KI-Lösungen · 100% lokal · 100% privat
       </div>
 
-      <!-- Headline -->
-      <h1 class="text-5xl sm:text-6xl md:text-7xl xl:text-8xl font-black tracking-tight leading-[1.05] mb-6">
-        <span class="text-white">Intelligenz,</span><br>
+      <h1 class="display-1 hero__headline">
+        Intelligenz,<br>
         <span class="gradient-text">die bei Ihnen bleibt.</span>
       </h1>
 
-      <!-- Typing subtitle -->
-      <div class="h-11 flex items-center justify-center mb-6" aria-live="polite">
-        <span class="text-xl md:text-2xl font-semibold text-violet-300" id="typing-text"></span>
+      <div class="hero__typing-row" aria-live="polite">
+        <span class="hero__typing" id="typing-text"></span>
         <span class="typing-cursor" aria-hidden="true"></span>
       </div>
 
-      <!-- Description -->
-      <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-        Massgeschneiderte RAG-Chatbots und KI-Assistenzsysteme für Schweizer KMUs, Behörden und Kanzleien –
-        auf Ihrer eigenen Infrastruktur betrieben. Kein Datentransfer in US-Clouds. Garantiert.
+      <p class="hero__desc">
+        Massgeschneiderte RAG-Chatbots und KI-Assistenzsysteme für Schweizer KMUs,
+        Behörden und Kanzleien – auf Ihrer eigenen Infrastruktur betrieben.
+        Kein Datentransfer in US-Clouds. Garantiert.
       </p>
 
-      <!-- CTA buttons -->
-      <div class="flex flex-col sm:flex-row gap-4 justify-center">
-        <a href="#kontakt" class="btn-primary text-white font-bold px-8 py-4 rounded-2xl text-lg">
-          Kostenlose Erstberatung →
-        </a>
-        <a href="#leistungen"
-           class="text-slate-300 hover:text-white font-medium px-8 py-4 rounded-2xl text-lg
-                  border border-slate-700/80 hover:border-slate-500 transition-all">
-          Leistungen entdecken
-        </a>
+      <div class="hero__ctas">
+        <a href="#kontakt" class="btn-primary">Kostenlose Erstberatung →</a>
+        <a href="#leistungen" class="btn-ghost">Leistungen entdecken</a>
       </div>
 
-      <!-- Trust indicators -->
-      <div class="mt-14 flex flex-wrap justify-center gap-5 text-sm text-slate-500">
-        <div class="flex items-center gap-1.5">
-          <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+      <div class="hero__trust">
+        <div class="trust-item">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
           </svg>
           100% lokales Hosting
         </div>
-        <div class="flex items-center gap-1.5">
-          <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+        <div class="trust-item">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
           </svg>
           nDSG &amp; DSGVO konform
         </div>
-        <div class="flex items-center gap-1.5">
-          <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+        <div class="trust-item">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
           </svg>
           Schweizer Serversicherheit
         </div>
-        <div class="flex items-center gap-1.5">
-          <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+        <div class="trust-item">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
           </svg>
           Open-Source Technologie
@@ -327,10 +966,9 @@
       </div>
     </div>
 
-    <!-- Scroll chevron -->
-    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce opacity-40" aria-hidden="true">
-      <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+    <div class="hero__scroll" aria-hidden="true">
+      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
       </svg>
     </div>
   </section>
@@ -338,119 +976,97 @@
   <div class="divider"></div>
 
 
-  <!-- ════════════════════════════════════════
-       FEATURES
-  ════════════════════════════════════════ -->
-  <section id="leistungen" class="py-24 relative">
-    <div class="max-w-7xl mx-auto px-6">
+  <!-- ════════════════════ LEISTUNGEN ════════════════════ -->
+  <section class="section" id="leistungen">
+    <div class="container">
 
-      <div class="text-center mb-16 reveal">
-        <div class="inline-block badge-violet px-4 py-1.5 rounded-full text-sm font-medium mb-4">Unsere Leistungen</div>
-        <h2 class="text-4xl md:text-5xl font-black text-white mb-4">
-          KI, die <span class="gradient-text">für Sie arbeitet</span>
-        </h2>
-        <p class="text-slate-400 text-lg max-w-2xl mx-auto">
-          Kein OpenAI-Abo. Kein Datentransfer in die USA.
-          Nur Ihre KI, auf Ihrer Infrastruktur, für Ihr Unternehmen.
+      <div class="section__header reveal">
+        <span class="badge badge--violet section__badge">Leistungen</span>
+        <h2 class="display-2 section__title">KI, die <span class="gradient-text">für Sie arbeitet</span></h2>
+        <p class="section__sub">
+          Kein OpenAI-Abo. Kein Datentransfer in die USA. Nur Ihre KI, auf Ihrer Infrastruktur, für Ihr Unternehmen.
         </p>
       </div>
 
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="feature-grid">
 
-        <!-- 1 – Lokales Hosting -->
-        <div class="feature-card rounded-2xl p-7 reveal">
-          <div class="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/30 flex items-center justify-center mb-5">
-            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2H5z"/>
+        <div class="feature-card reveal">
+          <div class="feature-icon feature-icon--violet">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2H5z"/>
             </svg>
           </div>
-          <h3 class="text-white font-bold text-xl mb-3">100% Lokales Hosting</h3>
-          <p class="text-slate-400 leading-relaxed text-sm">
-            Ihr KI-Modell läuft ausschliesslich auf Ihrer Hardware oder Ihrem Schweizer Server.
-            Powered by <span class="text-violet-400 font-medium">Ollama</span> und
-            <span class="text-violet-400 font-medium">AnythingLLM</span> –
-            ohne externe API-Calls.
+          <div class="feature-title">100% Lokales Hosting</div>
+          <p class="feature-text">
+            Das KI-Modell läuft ausschliesslich auf Ihrer Hardware oder Ihrem Schweizer Server.
+            Powered by <strong>Ollama</strong> und <strong>AnythingLLM</strong> – ohne externe API-Calls.
           </p>
         </div>
 
-        <!-- 2 – RAG -->
-        <div class="feature-card rounded-2xl p-7 reveal" style="transition-delay:.08s">
-          <div class="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/30 flex items-center justify-center mb-5">
-            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        <div class="feature-card reveal" style="transition-delay:.08s">
+          <div class="feature-icon feature-icon--violet">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
           </div>
-          <h3 class="text-white font-bold text-xl mb-3">RAG-Wissensdatenbanken</h3>
-          <p class="text-slate-400 leading-relaxed text-sm">
+          <div class="feature-title">RAG-Wissensdatenbanken</div>
+          <p class="feature-text">
             Reglemente, Verträge, Handbücher – Ihr internes Wissen wird zur KI-Wissensbasis.
-            Der Chatbot antwortet präzise aus Ihren Dokumenten, nie aus fremden Quellen.
+            Der Chatbot antwortet präzise aus Ihren eigenen Dokumenten, nie aus fremden Quellen.
           </p>
         </div>
 
-        <!-- 3 – Datenschutz -->
-        <div class="feature-card rounded-2xl p-7 reveal" style="transition-delay:.16s">
-          <div class="w-12 h-12 rounded-xl bg-emerald-900/30 border border-emerald-700/30 flex items-center justify-center mb-5">
-            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        <div class="feature-card reveal" style="transition-delay:.16s">
+          <div class="feature-icon feature-icon--emerald">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
             </svg>
           </div>
-          <h3 class="text-white font-bold text-xl mb-3">Absoluter Datenschutz</h3>
-          <p class="text-slate-400 leading-relaxed text-sm">
-            Kein einziges Byte Ihrer Daten verlässt Ihr Netzwerk.
-            Vollständig konform mit <span class="text-emerald-400 font-medium">nDSG</span> und
-            <span class="text-emerald-400 font-medium">DSGVO</span> –
-            ideal für Kanzleien, Behörden und vertrauliche Daten.
+          <div class="feature-title">Absoluter Datenschutz</div>
+          <p class="feature-text">
+            Kein einziges Byte Ihrer Daten verlässt Ihr Netzwerk. Vollständig konform mit
+            <em>nDSG</em> und <em>DSGVO</em> –
+            ideal für Kanzleien, Behörden und vertrauliche Unternehmensdaten.
           </p>
         </div>
 
-        <!-- 4 – Massgeschneidert -->
-        <div class="feature-card rounded-2xl p-7 reveal" style="transition-delay:.12s">
-          <div class="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/30 flex items-center justify-center mb-5">
-            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        <div class="feature-card reveal" style="transition-delay:.12s">
+          <div class="feature-icon feature-icon--violet">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
             </svg>
           </div>
-          <h3 class="text-white font-bold text-xl mb-3">Massgeschneiderte Chatbots</h3>
-          <p class="text-slate-400 leading-relaxed text-sm">
+          <div class="feature-title">Massgeschneiderte Chatbots</div>
+          <p class="feature-text">
             Vom einfachen FAQ-Bot bis zum komplexen internen Assistenten.
             Jede Lösung wird präzise für Ihre Anforderungen, Ihre Sprache und Ihre Arbeitsweise entwickelt.
           </p>
         </div>
 
-        <!-- 5 – Schweizer Infra -->
-        <div class="feature-card rounded-2xl p-7 reveal" style="transition-delay:.2s">
-          <div class="w-12 h-12 rounded-xl bg-emerald-900/30 border border-emerald-700/30 flex items-center justify-center mb-5">
-            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        <div class="feature-card reveal" style="transition-delay:.2s">
+          <div class="feature-icon feature-icon--emerald">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
           </div>
-          <h3 class="text-white font-bold text-xl mb-3">Schweizer Infrastruktur</h3>
-          <p class="text-slate-400 leading-relaxed text-sm">
+          <div class="feature-title">Schweizer Infrastruktur</div>
+          <p class="feature-text">
             Betrieb auf Schweizer Rechenzentren oder Ihrer eigenen Hardware.
             Volle Transparenz über den Datenspeicherort – kein Tracking, kein Profiling.
           </p>
         </div>
 
-        <!-- 6 – Persönliche Betreuung -->
-        <div class="feature-card rounded-2xl p-7 reveal" style="transition-delay:.24s">
-          <div class="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/30 flex items-center justify-center mb-5">
-            <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        <div class="feature-card reveal" style="transition-delay:.24s">
+          <div class="feature-icon feature-icon--violet">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
             </svg>
           </div>
-          <h3 class="text-white font-bold text-xl mb-3">Persönliche Betreuung</h3>
-          <p class="text-slate-400 leading-relaxed text-sm">
-            Direkter Kontakt ohne Support-Ticket-Bürokratie.
-            Als erfahrener Fachmann begleite ich Ihr Projekt von der Analyse bis zum produktiven Betrieb –
-            persönlich und verlässlich.
+          <div class="feature-title">Persönliche Betreuung</div>
+          <p class="feature-text">
+            Direkter Kontakt ohne Support-Ticket-Bürokratie. Als erfahrener IT/OT-Fachmann
+            begleite ich Ihr Projekt von der Analyse bis zum produktiven Betrieb – persönlich und verlässlich.
           </p>
         </div>
 
@@ -461,125 +1077,102 @@
   <div class="divider"></div>
 
 
-  <!-- ════════════════════════════════════════
-       TECHNOLOGY
-  ════════════════════════════════════════ -->
-  <section id="technologie" class="py-24 relative">
-    <div class="max-w-7xl mx-auto px-6">
-      <div class="grid lg:grid-cols-2 gap-16 items-center">
+  <!-- ════════════════════ TECHNOLOGIE ════════════════════ -->
+  <section class="section" id="technologie">
+    <div class="container">
+      <div class="tech-layout">
 
-        <!-- Left: Text + stack -->
         <div class="reveal">
-          <div class="inline-block badge-violet px-4 py-1.5 rounded-full text-sm font-medium mb-6">Technologie-Stack</div>
-          <h2 class="text-4xl md:text-5xl font-black text-white mb-6">
+          <span class="badge badge--violet">Technologie-Stack</span>
+          <h2 class="display-2 section__title" style="margin-top:14px">
             Bewährt. Open&nbsp;Source.<br>
             <span class="gradient-text">Vollständig kontrolliert.</span>
           </h2>
-          <p class="text-slate-400 text-lg leading-relaxed mb-8">
+          <p style="color:var(--text-muted);font-size:17px;line-height:1.7;margin-top:14px">
             Industriebewährte Open-Source-Technologien ohne Vendor-Lock-in.
             Ihre KI-Infrastruktur gehört Ihnen – heute und morgen.
           </p>
 
-          <div class="space-y-3">
-            <div class="tech-row flex items-center gap-4 p-4 rounded-xl">
-              <div class="w-11 h-11 rounded-lg bg-violet-900/50 flex items-center justify-center flex-shrink-0">
-                <span class="text-violet-400 font-bold text-xs tracking-tight">LLM</span>
-              </div>
+          <div class="tech-stack">
+            <div class="tech-row">
+              <div class="tech-pill tech-pill--violet">LLM</div>
               <div>
-                <div class="text-white font-semibold text-sm">Ollama</div>
-                <div class="text-slate-500 text-xs mt-0.5">Lokale LLM-Ausführung · Llama 3, Mistral, Phi-3 u.v.m.</div>
+                <div class="tech-name">Ollama</div>
+                <div class="tech-desc">Lokale LLM-Ausführung · Llama 3, Mistral, Phi-3 u.v.m.</div>
               </div>
             </div>
-            <div class="tech-row flex items-center gap-4 p-4 rounded-xl">
-              <div class="w-11 h-11 rounded-lg bg-violet-900/50 flex items-center justify-center flex-shrink-0">
-                <span class="text-violet-400 font-bold text-xs tracking-tight">RAG</span>
-              </div>
+            <div class="tech-row">
+              <div class="tech-pill tech-pill--violet">RAG</div>
               <div>
-                <div class="text-white font-semibold text-sm">AnythingLLM</div>
-                <div class="text-slate-500 text-xs mt-0.5">Dokumenten-Management, Vektordatenbank &amp; Chat-Interface</div>
+                <div class="tech-name">AnythingLLM</div>
+                <div class="tech-desc">Dokumenten-Management, Vektordatenbank &amp; Chat-Interface</div>
               </div>
             </div>
-            <div class="tech-row flex items-center gap-4 p-4 rounded-xl">
-              <div class="w-11 h-11 rounded-lg bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
-                <span class="text-emerald-400 font-bold text-xs tracking-tight">AUTO</span>
-              </div>
+            <div class="tech-row">
+              <div class="tech-pill tech-pill--emerald">AUTO</div>
               <div>
-                <div class="text-white font-semibold text-sm">n8n / Node-RED</div>
-                <div class="text-slate-500 text-xs mt-0.5">Workflow-Automatisierung &amp; System-Integration</div>
+                <div class="tech-name">n8n / Node-RED</div>
+                <div class="tech-desc">Workflow-Automatisierung &amp; System-Integration</div>
               </div>
             </div>
-            <div class="tech-row flex items-center gap-4 p-4 rounded-xl">
-              <div class="w-11 h-11 rounded-lg bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
-                <span class="text-emerald-400 font-bold text-xs tracking-tight">OPS</span>
-              </div>
+            <div class="tech-row">
+              <div class="tech-pill tech-pill--emerald">OPS</div>
               <div>
-                <div class="text-white font-semibold text-sm">CapRover / Docker</div>
-                <div class="text-slate-500 text-xs mt-0.5">Self-Hosted Deployment &amp; Container-Management</div>
+                <div class="tech-name">CapRover / Docker</div>
+                <div class="tech-desc">Self-Hosted Deployment &amp; Container-Management</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Right: Data-flow diagram -->
         <div class="reveal" style="transition-delay:.18s">
-          <div class="p-7 rounded-3xl bg-gradient-to-br from-slate-800/45 to-slate-900/45
-                       border border-slate-700/30 backdrop-blur-sm">
+          <div class="dataflow">
+            <div class="dataflow__title">Ihr Datenfluss – vollständig in Ihrer Kontrolle</div>
 
-            <p class="text-center text-slate-500 text-xs font-semibold uppercase tracking-widest mb-6">
-              Ihr Datenfluss – vollständig in Ihrer Kontrolle
-            </p>
-
-            <!-- User -->
-            <div class="flex items-center gap-3 p-3.5 rounded-xl bg-violet-900/20 border border-violet-700/20 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-violet-600/30 flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-violet-300" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <div class="flow-row">
+              <div class="flow-icon">
+                <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/>
                 </svg>
               </div>
-              <span class="text-slate-300 font-medium text-sm">Sie / Ihre Mitarbeitenden</span>
-              <span class="ml-auto text-violet-400 text-xs bg-violet-900/30 px-2 py-0.5 rounded-md">Browser</span>
+              <div class="flow-label">Sie / Ihre Mitarbeitenden</div>
+              <div class="flow-tag">Browser</div>
             </div>
 
-            <div class="flex justify-center text-slate-700 text-lg my-1" aria-hidden="true">↓</div>
+            <div class="flow-arrow" aria-hidden="true">↓</div>
 
-            <!-- AnythingLLM -->
-            <div class="flex items-center gap-3 p-3.5 rounded-xl bg-violet-900/20 border border-violet-700/20 mb-2">
-              <div class="w-8 h-8 rounded-lg bg-violet-600/30 flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-violet-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+            <div class="flow-row">
+              <div class="flow-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
                 </svg>
               </div>
-              <span class="text-slate-300 font-medium text-sm">AnythingLLM Chat-Interface</span>
-              <span class="ml-auto text-violet-400 text-xs bg-violet-900/30 px-2 py-0.5 rounded-md">Ihr Server</span>
+              <div class="flow-label">AnythingLLM Chat-Interface</div>
+              <div class="flow-tag">Ihr Server</div>
             </div>
 
-            <div class="flex justify-center text-slate-700 text-lg my-1" aria-hidden="true">↓</div>
+            <div class="flow-arrow" aria-hidden="true">↓</div>
 
-            <!-- RAG + LLM -->
-            <div class="grid grid-cols-2 gap-3 mb-4">
-              <div class="p-3.5 rounded-xl bg-slate-700/25 border border-slate-600/20">
-                <div class="text-violet-400 text-xs font-semibold uppercase tracking-wide mb-1">RAG Engine</div>
-                <div class="text-slate-500 text-xs">Ihre Dokumente &amp; Wissensbasis</div>
+            <div class="flow-2col">
+              <div class="flow-box">
+                <div class="flow-box__label">RAG Engine</div>
+                <div class="flow-box__sub">Ihre Dokumente &amp; Wissensbasis</div>
               </div>
-              <div class="p-3.5 rounded-xl bg-slate-700/25 border border-slate-600/20">
-                <div class="text-violet-400 text-xs font-semibold uppercase tracking-wide mb-1">Ollama LLM</div>
-                <div class="text-slate-500 text-xs">Lokales Sprachmodell</div>
+              <div class="flow-box">
+                <div class="flow-box__label">Ollama LLM</div>
+                <div class="flow-box__sub">Lokales Sprachmodell</div>
               </div>
             </div>
 
-            <!-- No cloud banner -->
-            <div class="p-3.5 rounded-xl bg-emerald-900/20 border border-emerald-700/30 flex items-center gap-3">
-              <svg class="w-5 h-5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            <div class="flow-nocloud">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
               </svg>
               <div>
-                <div class="text-emerald-400 font-semibold text-sm">Kein Cloud-Kontakt</div>
-                <div class="text-slate-500 text-xs">Alle Daten bleiben in Ihrer Infrastruktur</div>
+                <div class="flow-nocloud__title">Kein Cloud-Kontakt</div>
+                <div class="flow-nocloud__sub">Alle Daten bleiben in Ihrer Infrastruktur</div>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -590,101 +1183,69 @@
   <div class="divider"></div>
 
 
-  <!-- ════════════════════════════════════════
-       BRAND ARCHITECTURE
-  ════════════════════════════════════════ -->
-  <section id="oekosystem" class="py-24 relative">
-    <div class="max-w-7xl mx-auto px-6">
+  <!-- ════════════════════ ÖKOSYSTEM ════════════════════ -->
+  <section class="section" id="oekosystem">
+    <div class="container">
 
-      <div class="text-center mb-16 reveal">
-        <div class="inline-block badge-emerald px-4 py-1.5 rounded-full text-sm font-medium mb-4">Das IoTUeli-Ökosystem</div>
-        <h2 class="text-4xl md:text-5xl font-black text-white mb-4">
-          Teil einer grösseren <span class="gradient-text">Vision</span>
-        </h2>
-        <p class="text-slate-400 text-lg max-w-2xl mx-auto">
-          AI-Ueli ist der erste Schritt. Als Teil der IoTUeli-Dachmarke entstehen weitere Spezialbereiche
-          für IT-Infrastruktur und Operational Technology.
+      <div class="section__header reveal">
+        <span class="badge badge--emerald section__badge">Das IoTUeli-Ökosystem</span>
+        <h2 class="display-2 section__title">Teil einer grösseren <span class="gradient-text">Vision</span></h2>
+        <p class="section__sub">
+          AI-Ueli ist der erste Schritt. Als Teil der IoTUeli-Dachmarke entstehen weitere
+          Spezialbereiche für IT-Infrastruktur und Operational Technology.
         </p>
       </div>
 
-      <!-- Brand cards -->
-      <div class="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto reveal">
+      <div class="brand-grid reveal">
 
-        <!-- AI-Ueli: Active ✓ -->
-        <div class="brand-active rounded-2xl p-7 relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-36 h-36 bg-violet-600/10 rounded-full
-                       -translate-y-10 translate-x-10 blur-2xl pointer-events-none" aria-hidden="true"></div>
-          <div class="relative z-10">
-            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-violet-800
-                         flex items-center justify-center shadow-lg mb-4">
-              <span class="text-white font-black text-[11px]">AI</span>
-            </div>
-            <div class="flex items-center gap-2 mb-3">
-              <h3 class="text-white font-bold text-xl">AI-Ueli</h3>
-              <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full
-                           bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                Aktiv
-              </span>
-            </div>
-            <p class="text-slate-400 text-sm leading-relaxed mb-5">
-              Lokale KI-Systeme, RAG-Chatbots und KI-Automatisierung für Schweizer Unternehmen.
-            </p>
-            <a href="#kontakt" class="text-violet-400 text-sm font-semibold
-               hover:text-violet-300 transition-colors flex items-center gap-1">
-              Mehr erfahren →
-            </a>
+        <!-- AI-Ueli aktiv -->
+        <div class="brand-card brand-card--active">
+          <div class="brand-card__glow" aria-hidden="true"></div>
+          <div class="brand-icon brand-icon--active">AI</div>
+          <div class="brand-header">
+            <span class="brand-name brand-name--active">AI-Ueli</span>
+            <span class="brand-status brand-status--active">Aktiv</span>
           </div>
+          <p class="brand-text brand-text--active">
+            Lokale KI-Systeme, RAG-Chatbots und KI-Automatisierung für Schweizer Unternehmen.
+          </p>
+          <a href="#kontakt" class="brand-link">Mehr erfahren →</a>
         </div>
 
-        <!-- IT-Ueli: Coming Soon -->
-        <div class="brand-disabled rounded-2xl p-7 cursor-default select-none">
-          <div class="w-12 h-12 rounded-xl bg-slate-700/40 flex items-center justify-center mb-4">
-            <span class="text-slate-500 font-black text-[11px]">IT</span>
+        <!-- IT-Ueli -->
+        <div class="brand-card brand-card--disabled">
+          <div class="brand-icon brand-icon--disabled">IT</div>
+          <div class="brand-header">
+            <span class="brand-name brand-name--disabled">IT-Ueli</span>
+            <span class="brand-status brand-status--soon">In Vorbereitung</span>
           </div>
-          <div class="flex items-center gap-2 mb-3">
-            <h3 class="text-slate-500 font-bold text-xl">IT-Ueli</h3>
-            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full
-                         bg-slate-700/50 text-slate-600 border border-slate-600/30">
-              In Vorbereitung
-            </span>
-          </div>
-          <p class="text-slate-600 text-sm leading-relaxed mb-5">
+          <p class="brand-text brand-text--disabled">
             IT-Infrastruktur, Netzwerk-Security und massgeschneiderte Cloud-Lösungen für KMUs.
           </p>
-          <span class="text-slate-700 text-sm font-medium">Coming Soon</span>
+          <span class="brand-soon">Coming Soon</span>
         </div>
 
-        <!-- OT-Ueli: Coming Soon -->
-        <div class="brand-disabled rounded-2xl p-7 cursor-default select-none">
-          <div class="w-12 h-12 rounded-xl bg-slate-700/40 flex items-center justify-center mb-4">
-            <span class="text-slate-500 font-black text-[11px]">OT</span>
+        <!-- OT-Ueli -->
+        <div class="brand-card brand-card--disabled">
+          <div class="brand-icon brand-icon--disabled">OT</div>
+          <div class="brand-header">
+            <span class="brand-name brand-name--disabled">OT-Ueli</span>
+            <span class="brand-status brand-status--soon">In Vorbereitung</span>
           </div>
-          <div class="flex items-center gap-2 mb-3">
-            <h3 class="text-slate-500 font-bold text-xl">OT-Ueli</h3>
-            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full
-                         bg-slate-700/50 text-slate-600 border border-slate-600/30">
-              In Vorbereitung
-            </span>
-          </div>
-          <p class="text-slate-600 text-sm leading-relaxed mb-5">
+          <p class="brand-text brand-text--disabled">
             Operational Technology, Industrie-Automatisierung und SCADA/PLC-Systeme.
           </p>
-          <span class="text-slate-700 text-sm font-medium">Coming Soon</span>
+          <span class="brand-soon">Coming Soon</span>
         </div>
 
       </div>
 
-      <!-- Parent brand indicator -->
-      <div class="mt-10 flex justify-center reveal">
-        <div class="inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl
-                     bg-slate-800/50 border border-slate-700/30">
-          <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-800
-                       flex items-center justify-center">
-            <span class="text-white font-black text-[9px]">IoT</span>
-          </div>
-          <span class="text-slate-500 text-sm">Teil der</span>
-          <span class="text-emerald-400 font-semibold text-sm">IoTUeli</span>
-          <span class="text-slate-500 text-sm">Dachmarke · iotueli.ch</span>
+      <div style="text-align:center">
+        <div class="brand-parent">
+          <div class="brand-parent__icon">IoT</div>
+          <span class="brand-parent__text">Teil der </span>
+          <span class="brand-parent__name">IoTUeli</span>
+          <span class="brand-parent__text"> Dachmarke · iotueli.ch</span>
         </div>
       </div>
 
@@ -694,99 +1255,73 @@
   <div class="divider"></div>
 
 
-  <!-- ════════════════════════════════════════
-       CTA
-  ════════════════════════════════════════ -->
-  <section id="kontakt" class="py-28 relative overflow-hidden">
+  <!-- ════════════════════ CTA ════════════════════ -->
+  <section class="cta-section" id="kontakt">
+    <div class="cta-glow" aria-hidden="true"><div class="cta-glow__orb"></div></div>
 
-    <div class="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
-      <div class="w-[700px] h-[350px] bg-violet-700/08 rounded-full blur-3xl opacity-60"></div>
-    </div>
-
-    <div class="relative z-10 max-w-4xl mx-auto px-6 text-center reveal">
-
-      <div class="inline-block badge-violet px-4 py-1.5 rounded-full text-sm font-medium mb-6">
-        Unverbindliche Erstberatung
-      </div>
-
-      <h2 class="text-4xl md:text-5xl xl:text-6xl font-black text-white mb-6 leading-tight">
+    <div class="container--narrow cta-content reveal">
+      <span class="badge badge--violet">Unverbindliche Erstberatung</span>
+      <h2 class="display-2 cta-headline">
         Lassen Sie uns bei einem Kaffee<br>
         <span class="gradient-text">über Ihre Daten sprechen.</span>
       </h2>
-
-      <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-        Kein Verkaufsdruck, keine leeren Versprechen. Ich höre mir Ihre Situation an und sage Ihnen
-        ehrlich, ob und wie lokale KI für Ihr Unternehmen sinnvoll ist.
+      <p class="cta-desc">
+        Kein Verkaufsdruck, keine leeren Versprechen. Ich höre mir Ihre Situation an und
+        sage Ihnen ehrlich, ob und wie lokale KI für Ihr Unternehmen sinnvoll ist.
         Das Erstgespräch ist komplett kostenlos.
       </p>
 
-      <!-- Metrics + CTA box -->
-      <div class="p-8 md:p-10 rounded-3xl bg-gradient-to-br from-slate-800/55 to-slate-900/55
-                   border border-violet-700/18 backdrop-blur-sm mb-8">
-
-        <div class="grid md:grid-cols-3 gap-6 mb-8 pb-8 border-b border-slate-800/60">
-          <div class="text-center">
-            <div class="text-3xl font-black text-white mb-1">30 Min.</div>
-            <div class="text-slate-500 text-sm">Kostenloses Erstgespräch</div>
+      <div class="cta-box">
+        <div class="cta-metrics">
+          <div style="text-align:center">
+            <div class="metric-num">30 Min.</div>
+            <div class="metric-sub">Kostenloses Erstgespräch</div>
           </div>
-          <div class="text-center">
-            <div class="text-3xl font-black text-white mb-1">Online</div>
-            <div class="text-slate-500 text-sm">oder persönlich in der Schweiz</div>
+          <div style="text-align:center">
+            <div class="metric-num">Online</div>
+            <div class="metric-sub">oder persönlich in der Schweiz</div>
           </div>
-          <div class="text-center">
-            <div class="text-3xl font-black text-white mb-1">0 CHF</div>
-            <div class="text-slate-500 text-sm">Unverbindlich &amp; kostenlos</div>
+          <div style="text-align:center">
+            <div class="metric-num">0 CHF</div>
+            <div class="metric-sub">Unverbindlich &amp; kostenlos</div>
           </div>
         </div>
 
-        <a href="mailto:hallo@iotueli.ch"
-           class="btn-primary inline-flex items-center justify-center gap-3
-                  text-white font-bold px-10 py-5 rounded-2xl text-xl w-full sm:w-auto">
-          <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
-          hallo@iotueli.ch
-        </a>
+        <div style="text-align:center">
+          <a href="mailto:hallo@iotueli.ch" class="btn-primary" style="font-size:19px;padding:17px 36px">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            hallo@iotueli.ch
+          </a>
+        </div>
       </div>
 
-      <p class="text-slate-600 text-sm">
+      <p class="cta-fine">
         Antwort in der Regel innert 24&nbsp;Stunden · Schweizerdeutsch oder Deutsch ·
         Kein Newsletter, kein Spam
       </p>
-
     </div>
   </section>
 
 
-  <!-- ════════════════════════════════════════
-       FOOTER
-  ════════════════════════════════════════ -->
-  <footer class="border-t border-slate-800/50 py-10">
-    <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-violet-800 flex items-center justify-center">
-          <span class="text-white font-black text-[10px]">AI</span>
-        </div>
-        <span class="text-slate-500 text-sm">
-          <span class="text-slate-300 font-semibold">AI-Ueli</span> · Teil von IoTUeli · Schweiz
-        </span>
+  <!-- ════════════════════ FOOTER ════════════════════ -->
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <div class="footer__icon">AI</div>
+        <span class="footer__name"><strong>AI-Ueli</strong> · Teil von IoTUeli · Schweiz</span>
       </div>
-
-      <div class="flex items-center gap-6 text-slate-700 text-sm">
-        <a href="#" class="hover:text-slate-400 transition-colors">Datenschutz</a>
-        <a href="#" class="hover:text-slate-400 transition-colors">Impressum</a>
-        <span>© 2025 IoTUeli</span>
+      <div class="footer__links">
+        <a href="#">Datenschutz</a>
+        <a href="#">Impressum</a>
+        <span class="footer__copy">© 2025 IoTUeli</span>
       </div>
-
     </div>
   </footer>
 
 
-  <!-- ════════════════════════════════════════
-       SCRIPTS
-  ════════════════════════════════════════ -->
+  <!-- ════════════════════ SCRIPTS ════════════════════ -->
   <script>
     /* ── Typing effect ── */
     (function () {
@@ -796,42 +1331,28 @@
         'Ihre Daten. In der Schweiz.',
         'Ihre KI. Ihr Eigentum.',
       ];
-
       const el = document.getElementById('typing-text');
-      let pi = 0, ci = 0, deleting = false, delay = 100;
+      let pi = 0, ci = 0, del = false, delay = 100;
 
-      function tick () {
-        const phrase = phrases[pi];
-        if (deleting) {
-          el.textContent = phrase.slice(0, --ci);
-          delay = 45;
-        } else {
-          el.textContent = phrase.slice(0, ++ci);
-          delay = 90;
-        }
+      function tick() {
+        const p = phrases[pi];
+        if (del) { el.textContent = p.slice(0, --ci); delay = 45; }
+        else     { el.textContent = p.slice(0, ++ci); delay = 90; }
 
-        if (!deleting && ci === phrase.length) {
-          deleting = true;
-          delay = 2200;
-        } else if (deleting && ci === 0) {
-          deleting = false;
-          pi = (pi + 1) % phrases.length;
-          delay = 450;
-        }
-
+        if (!del && ci === p.length)  { del = true;  delay = 2200; }
+        else if (del && ci === 0)     { del = false; pi = (pi + 1) % phrases.length; delay = 420; }
         setTimeout(tick, delay);
       }
-
-      setTimeout(tick, 600);
+      setTimeout(tick, 700);
     })();
 
-    /* ── Scroll-reveal via IntersectionObserver ── */
+    /* ── Scroll reveal ── */
     (function () {
-      const observer = new IntersectionObserver(
-        entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+      const obs = new IntersectionObserver(
+        es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
         { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
       );
-      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+      document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
     })();
 
     /* ── Navbar scroll tint ── */
@@ -842,21 +1363,20 @@
       }, { passive: true });
     })();
 
-    /* ── Smooth scroll for anchor links ── */
+    /* ── Smooth scroll ── */
     document.querySelectorAll('a[href^="#"]').forEach(a => {
       a.addEventListener('click', e => {
-        const target = document.querySelector(a.getAttribute('href'));
-        if (!target) return;
+        const t = document.querySelector(a.getAttribute('href'));
+        if (!t) return;
         e.preventDefault();
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Close mobile menu if open
-        document.getElementById('mobile-menu').classList.add('hidden');
+        t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('nav-mobile').classList.remove('open');
       });
     });
 
-    /* ── Mobile menu toggle ── */
-    document.getElementById('mobile-menu-btn').addEventListener('click', () => {
-      document.getElementById('mobile-menu').classList.toggle('hidden');
+    /* ── Mobile menu ── */
+    document.getElementById('nav-hamburger').addEventListener('click', () => {
+      document.getElementById('nav-mobile').classList.toggle('open');
     });
   </script>
 
